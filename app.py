@@ -64,6 +64,7 @@ if uploaded_file is not None:
         
             # --- Run your analysis ---
             if st.button("Run Analysis"):
+                results = {}
                 st.session_state.run_analysis = True
                 if st.session_state.get("run_analysis"):
                     df = df.set_index('From Date')
