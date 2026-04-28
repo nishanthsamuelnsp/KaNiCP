@@ -6,7 +6,7 @@ def check_data_quality(df):
         'NOx (ppb)','SO2 (ug/m3)','CO (mg/m3)','Ozone (ug/m3)',
         'Benzene (ug/m3)','Toluene (ug/m3)','Eth-Benzene (ug/m3)',
         'MP-Xylene (ug/m3)','O-Xylene (ug/m3)','RH (%)','WS (m/s)',
-        'WD (degree)','SR (W/mt2)',"AT ('C)"
+        'WD (degree)','SR (W/mt2)',"AT (C)"
     ]
 
     # Ensure numeric coercion
