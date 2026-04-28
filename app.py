@@ -128,9 +128,7 @@ if uploaded_file is not None:
                 if corr_results:
                     st.success("✅ Correlation analysis completed")
                 
-                    # 👇 Show the image in Streamlit
-                    for fname, img_bytes in corr_results.items():
-                        st.image(img_bytes, caption=fname)
+                   
                 
                     # 👇 Add to ZIP bundle
                     results.update(corr_results)
@@ -146,9 +144,7 @@ if uploaded_file is not None:
                 if roses_results:
                     st.success("✅ Roses generated")
                 
-                    for fname, img_bytes in roses_results.items():
-                        st.image(img_bytes, caption=fname)
-                
+               
                     results.update(roses_results)
                 else:
                     st.warning("⚠️ Roses could not be generated (missing data)")
@@ -161,9 +157,6 @@ if uploaded_file is not None:
                 if aqi_results:
                     st.success("✅ AQI analysis completed")
                 
-                    for fname, file in aqi_results.items():
-                        if fname.endswith(".png"):
-                            st.image(file, caption=fname)
                 
                     results.update(aqi_results)
                 else:
@@ -173,179 +166,179 @@ if uploaded_file is not None:
                 # 🌍 Dynamic Pollution Rose - User Input
                 # ----------------------------------------
                 
-                st.subheader("📍 Dynamic Pollution Rose (KMZ Generator)")
-                
-                st.info("Select up to 3 time periods (within available dataset). Each request will generate a separate KMZ.")
-                
+            st.subheader("📍 Dynamic Pollution Rose (KMZ Generator)")
+            
+            st.info("Select up to 3 time periods (within available dataset). Each request will generate a separate KMZ.")
+            
+            # -------------------------
+            # 📅 Dataset coverage
+            # -------------------------
+            df.index = pd.to_datetime(df.index)
+            
+            st.caption(
+                f"📅 Data available from {df.index.min().date()} to {df.index.max().date()}"
+            )
+            
+            # Available years + months
+            available_years = sorted(df.index.year.unique())
+            
+            year_month_map = {
+                year: sorted(df[df.index.year == year].index.month.unique())
+                for year in available_years
+            }
+            
+            # -------------------------
+            # 📍 Location input
+            # -------------------------
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                latitude = st.number_input("Latitude", value=20.345, format="%.6f")
+            
+            with col2:
+                longitude = st.number_input("Longitude", value=85.811, format="%.6f")
+            
+            
+            # -------------------------
+            # 🧪 Pollutant filtering base
+            # -------------------------
+            pollutant_options = [
+                col for col in valid_columns
+                if col not in ['WS (m/s)', 'WD (degree)', 'AT (C)', 'RH (%)', 'SR (W/mt2)']
+            ]
+            
+            # -------------------------
+            # 📦 KMZ Requests
+            # -------------------------
+            kmz_requests = []
+            
+            for i in range(3):
+            
+                st.markdown(f"---")
+                st.markdown(f"### 📦 KMZ Request {i+1}")
+            
+                use_request = st.checkbox(f"Enable Request {i+1}", key=f"use_{i}")
+            
+                if not use_request:
+                    continue
+            
                 # -------------------------
-                # 📅 Dataset coverage
-                # -------------------------
-                df.index = pd.to_datetime(df.index)
-                
-                st.caption(
-                    f"📅 Data available from {df.index.min().date()} to {df.index.max().date()}"
-                )
-                
-                # Available years + months
-                available_years = sorted(df.index.year.unique())
-                
-                year_month_map = {
-                    year: sorted(df[df.index.year == year].index.month.unique())
-                    for year in available_years
-                }
-                
-                # -------------------------
-                # 📍 Location input
+                # Year + Month
                 # -------------------------
                 col1, col2 = st.columns(2)
-                
+            
                 with col1:
-                    latitude = st.number_input("Latitude", value=20.345, format="%.6f")
-                
+                    year = st.selectbox(
+                        "Select Year",
+                        options=available_years,
+                        key=f"year_{i}"
+                    )
+            
                 with col2:
-                    longitude = st.number_input("Longitude", value=85.811, format="%.6f")
-                
-                
+                    months_available = year_month_map[year]
+            
+                    month = st.selectbox(
+                        "Select Month",
+                        options=months_available,
+                        format_func=lambda x: [
+                            "Jan","Feb","Mar","Apr","May","Jun",
+                            "Jul","Aug","Sep","Oct","Nov","Dec"
+                        ][x-1],
+                        key=f"month_{i}"
+                    )
+            
                 # -------------------------
-                # 🧪 Pollutant filtering base
+                # Mode
                 # -------------------------
-                pollutant_options = [
-                    col for col in valid_columns
-                    if col not in ['WS (m/s)', 'WD (degree)', 'AT (C)', 'RH (%)', 'SR (W/mt2)']
-                ]
-                
+                mode = st.radio(
+                    "Select Mode",
+                    ["Full Month", "Custom Range"],
+                    key=f"mode_{i}"
+                )
+            
                 # -------------------------
-                # 📦 KMZ Requests
+                # Day selection
                 # -------------------------
-                kmz_requests = []
-                
-                for i in range(3):
-                
-                    st.markdown(f"---")
-                    st.markdown(f"### 📦 KMZ Request {i+1}")
-                
-                    use_request = st.checkbox(f"Enable Request {i+1}", key=f"use_{i}")
-                
-                    if not use_request:
-                        continue
-                
-                    # -------------------------
-                    # Year + Month
-                    # -------------------------
-                    col1, col2 = st.columns(2)
-                
-                    with col1:
-                        year = st.selectbox(
-                            "Select Year",
-                            options=available_years,
-                            key=f"year_{i}"
+                if mode == "Custom Range":
+            
+                    col3, col4 = st.columns(2)
+            
+                    with col3:
+                        start_day = st.number_input(
+                            "Start Day",
+                            min_value=1,
+                            max_value=31,
+                            value=1,
+                            key=f"start_{i}"
                         )
-                
-                    with col2:
-                        months_available = year_month_map[year]
-                
-                        month = st.selectbox(
-                            "Select Month",
-                            options=months_available,
-                            format_func=lambda x: [
-                                "Jan","Feb","Mar","Apr","May","Jun",
-                                "Jul","Aug","Sep","Oct","Nov","Dec"
-                            ][x-1],
-                            key=f"month_{i}"
+            
+                    with col4:
+                        end_day = st.number_input(
+                            "End Day",
+                            min_value=1,
+                            max_value=31,
+                            value=7,
+                            key=f"end_{i}"
                         )
+            
+                else:
+                    start_day = 1
+                    end_day = 31
+            
+                # -------------------------
+                # 🧪 Pollutants (PER REQUEST)
+                # -------------------------
+                selected_pollutants = st.multiselect(
+                    "Select pollutants for this KMZ",
+                    options=pollutant_options,
+                    key=f"pollutants_{i}"
+                )
+            
+                if not selected_pollutants:
+                    st.warning(f"⚠️ Select at least one pollutant for Request {i+1}")
+            
+                # -------------------------
+                # Store request
+                # -------------------------
+                kmz_requests.append({
+                    "year": year,
+                    "month": month,
+                    "start_day": start_day,
+                    "end_day": end_day,
+                    "pollutants": selected_pollutants
+                })
+            
+            
+            # -------------------------
+            # 🚀 Generate Button
+            # -------------------------
+            generate_kmz = st.button("🌍 Generate KMZ Files")
+            
+            # -------------------------
+            # ⚠️ Validation
+            # -------------------------
+            if generate_kmz:
+            
+                if not kmz_requests:
+                    st.warning("⚠️ Please enable at least one KMZ request.")
+            
+                elif any(len(req["pollutants"]) == 0 for req in kmz_requests):
+                    st.warning("⚠️ Each enabled request must have at least one pollutant selected.")
+            
+                else:
+                    st.success("✅ Ready for KMZ generation")
+                    from modules.kmz import run_kmz_generation
                 
-                    # -------------------------
-                    # Mode
-                    # -------------------------
-                    mode = st.radio(
-                        "Select Mode",
-                        ["Full Month", "Custom Range"],
-                        key=f"mode_{i}"
+                    kmz_results = run_kmz_generation(
+                        df,
+                        kmz_requests,
+                        latitude,
+                        longitude
                     )
                 
-                    # -------------------------
-                    # Day selection
-                    # -------------------------
-                    if mode == "Custom Range":
+                    results.update(kmz_results)
                 
-                        col3, col4 = st.columns(2)
-                
-                        with col3:
-                            start_day = st.number_input(
-                                "Start Day",
-                                min_value=1,
-                                max_value=31,
-                                value=1,
-                                key=f"start_{i}"
-                            )
-                
-                        with col4:
-                            end_day = st.number_input(
-                                "End Day",
-                                min_value=1,
-                                max_value=31,
-                                value=7,
-                                key=f"end_{i}"
-                            )
-                
-                    else:
-                        start_day = 1
-                        end_day = 31
-                
-                    # -------------------------
-                    # 🧪 Pollutants (PER REQUEST)
-                    # -------------------------
-                    selected_pollutants = st.multiselect(
-                        "Select pollutants for this KMZ",
-                        options=pollutant_options,
-                        key=f"pollutants_{i}"
-                    )
-                
-                    if not selected_pollutants:
-                        st.warning(f"⚠️ Select at least one pollutant for Request {i+1}")
-                
-                    # -------------------------
-                    # Store request
-                    # -------------------------
-                    kmz_requests.append({
-                        "year": year,
-                        "month": month,
-                        "start_day": start_day,
-                        "end_day": end_day,
-                        "pollutants": selected_pollutants
-                    })
-                
-                
-                # -------------------------
-                # 🚀 Generate Button
-                # -------------------------
-                generate_kmz = st.button("🌍 Generate KMZ Files")
-                
-                # -------------------------
-                # ⚠️ Validation
-                # -------------------------
-                if generate_kmz:
-                
-                    if not kmz_requests:
-                        st.warning("⚠️ Please enable at least one KMZ request.")
-                
-                    elif any(len(req["pollutants"]) == 0 for req in kmz_requests):
-                        st.warning("⚠️ Each enabled request must have at least one pollutant selected.")
-                
-                    else:
-                        st.success("✅ Ready for KMZ generation")
-                        from modules.kmz import run_kmz_generation
-                    
-                        kmz_results = run_kmz_generation(
-                            df,
-                            kmz_requests,
-                            latitude,
-                            longitude
-                        )
-                    
-                        results.update(kmz_results)
-                    
-                        st.success("✅ KMZ files generated successfully")
+                st.success("✅ KMZ files generated successfully")
                 from modules.utils import create_zip
 
                 skip_kmz = st.button("⏭️ Skip KMZ & Download Results")
