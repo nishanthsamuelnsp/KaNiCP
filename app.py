@@ -138,7 +138,12 @@ if uploaded_file is not None:
         # -------------------------
         # SEASON
         # -------------------------
-#
+        from modules.season_detection import detect_seasons
+        seasons, _ = detect_seasons(df)
+
+        from modules.seasonal import run_seasonal_analysis
+        results.update(run_seasonal_analysis(df, valid_columns, seasons))
+        progress.progress(60)
         # -------------------------
         # CORRELATION
         # -------------------------
