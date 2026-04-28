@@ -64,7 +64,28 @@ if uploaded_file is not None:
         
             # --- Run your analysis ---
             if st.button("Run Analysis"):
-                st.write("🚀 Running analysis...")
+                st.session_state.run_analysis = True
+                if st.session_state.get("run_analysis"):
+                    progress = st.progress(0)
+                    status = st.empty()
+                    status.write("Step 1: Checking data quality...")
+                    progress.progress(10)
+                    status.write("Step 1: Checking data quality...")
+                    from modules.data_quality import check_data_quality
+                    
+                    
+                    conv_summary, valid_columns, dropped_columns = check_data_quality(df)
+                    
+                    st.subheader("📊 Data Quality Summary")
+                    st.dataframe(conv_summary)
+                    
+                    if dropped_columns:
+                        st.warning(f"⚠️ Dropped columns (>30% missing): {', '.join(dropped_columns)}")
+                    else:
+                        st.success("✅ No columns dropped")
+                    progress.progress(10)
+                    
+                    progress.progress(30)
 
                 # CALL YOUR EXISTING CODE HERE
                 # results = your_function(df)
