@@ -176,21 +176,21 @@ if uploaded_file is not None:
         from modules.seasonal import run_seasonal_analysis
         results.update(run_seasonal_analysis(df, valid_columns, seasons))
         progress.progress(60)
-            st.write("Seas com")
+        st.write("Seas com")    
         # -------------------------
         # CORRELATION
         # -------------------------
         from modules.met_correlation import run_correlation_analysis
         results.update(run_correlation_analysis(df, valid_columns))
         progress.progress(75)
-            st.write("corr com")
+        st.write("Corr com")    
         # -------------------------
         # ROSES
         # -------------------------
         from modules.roses import run_roses_analysis
         results.update(run_roses_analysis(df, valid_columns))
         progress.progress(85)
-            st.write("Rose com")
+        st.write("Rose com")
 
         # -------------------------
         # AQI
@@ -198,7 +198,7 @@ if uploaded_file is not None:
         from modules.aqi import run_aqi_analysis
         results.update(run_aqi_analysis(df))
         progress.progress(95)
-            st.write("Aqi com")
+        st.write("Aqi com")
         # -------------------------
         # KMZ
         # -------------------------
