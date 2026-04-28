@@ -134,10 +134,6 @@ if uploaded_file is not None:
 
         # -------------------------
         # DIURNAL
-        # -------------------------
-        from modules.diurnal import run_diurnal_analysis
-        results.update(run_diurnal_analysis(df, valid_columns))
-        progress.progress(40)
 
         # -------------------------
         # SEASON
