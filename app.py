@@ -61,11 +61,12 @@ if uploaded_file is not None:
         else:
             st.success("⏱ To Date format is valid!")
         
-        df = df.set_index('From Date')
+        
             # --- Run your analysis ---
             if st.button("Run Analysis"):
                 st.session_state.run_analysis = True
                 if st.session_state.get("run_analysis"):
+                    df = df.set_index('From Date')
                     progress = st.progress(0)
                     status = st.empty()
                     status.write("Step 1: Checking data quality...")
