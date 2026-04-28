@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+st.write("🔁 Script reran")
 if "results" not in st.session_state:
     st.session_state.results = {}
 
@@ -69,7 +70,7 @@ if uploaded_file is not None:
         
             # --- Run your analysis ---
             if st.button("🚀 Run Analysis"):
-
+                st.write("✅ Button clicked")
                 # ✅ reset results properly
                 st.session_state.results = {}
                 results = st.session_state.results
