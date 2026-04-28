@@ -3,8 +3,11 @@ import pandas as pd
 import numpy as np
 
 # -----------------------------
-# 🔐 Session State Init
+# 🔐 SESSION STATE INIT
 # -----------------------------
+if "df" not in st.session_state:
+    st.session_state.df = None
+
 if "results" not in st.session_state:
     st.session_state.results = {}
 
@@ -12,98 +15,79 @@ if "analysis_done" not in st.session_state:
     st.session_state.analysis_done = False
 
 # -----------------------------
-# 📄 Page Config
+# 📄 PAGE
 # -----------------------------
-st.set_page_config(page_title="Air Pollution Analysis App", layout="wide")
-st.title("🌍 Air Pollution Analysis Tool")
+st.set_page_config(page_title="Air Pollution App", layout="wide")
+st.title("🌍 Air Pollution Analysis")
 
 # -----------------------------
-# 📌 Instructions
+# 📤 FILE UPLOAD
 # -----------------------------
-st.header("📌 Instructions")
-st.markdown("""
-- Upload **hourly air quality data**
-- CSV format required
-- Ensure correct column headers
-""")
+uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
+
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+
+    # ✅ store once
+    st.session_state.df = df
+    st.session_state.analysis_done = False   # reset if new file uploaded
 
 # -----------------------------
-# 📤 Upload
+# 📊 PREVIEW
 # -----------------------------
-uploaded_file = st.file_uploader(
-    "📤 Upload your dataset",
-    type=["csv"],
-    accept_multiple_files=False
-)
+if st.session_state.df is not None:
+    st.subheader("Preview")
+    st.dataframe(st.session_state.df.head())
 
 # -----------------------------
 # 🚀 RUN ANALYSIS
 # -----------------------------
-if uploaded_file is not None:
+if st.session_state.df is not None:
 
-    df = pd.read_csv(uploaded_file)
-    st.subheader("📊 Data Preview")
-    st.dataframe(df.head())
+    if st.button("🚀 Run Analysis", key="run_btn"):
 
-    required_columns = [
-        "From Date","To Date",
-        "PM2.5 (ug/m3)","PM10 (ug/m3)",
-        "NO (ug/m3)","NO2 (ug/m3)","NOx (ppb)",
-        "SO2 (ug/m3)","CO (mg/m3)","Ozone (ug/m3)",
-        "WS (m/s)","WD (degree)","AT (C)"
-    ]
+        df = st.session_state.df.copy()
 
-    missing = [c for c in required_columns if c not in df.columns]
+        # -------------------------
+        # SAFE DATETIME
+        # -------------------------
+        df['From Date'] = pd.to_datetime(
+            df['From Date'],
+            format='mixed',
+            dayfirst=True,
+            errors='coerce'
+        )
 
-    if missing:
-        st.error(f"❌ Missing columns: {', '.join(missing)}")
-        st.stop()
+        if df['From Date'].isnull().any():
+            st.error("Invalid datetime format")
+            st.stop()
 
-    st.success("✅ Data format OK")
+        df = df.set_index('From Date')
 
-    # Datetime conversion
-    df['From Date'] = pd.to_datetime(df['From Date'], format='mixed', dayfirst=True, errors='coerce')
-    df['To Date']   = pd.to_datetime(df['To Date'],   format='mixed', dayfirst=True, errors='coerce')
-
-    if df['From Date'].isnull().any():
-        st.error("❌ Invalid From Date format")
-        st.stop()
-
-    # -----------------------------
-    # RUN BUTTON
-    # -----------------------------
-    if st.button("🚀 Run Analysis", key="run_analysis"):
-
+        # -------------------------
+        # RESET RESULTS
+        # -------------------------
         st.session_state.results = {}
         results = st.session_state.results
-
-        df = df.copy()
-        df = df.set_index('From Date')
 
         progress = st.progress(0)
 
         # -------------------------
-        # Step 1: Data Quality
+        # MODULE CALLS
         # -------------------------
         from modules.data_quality import check_data_quality
-        conv_summary, valid_columns, dropped_columns = check_data_quality(df)
+        conv_summary, valid_columns, dropped = check_data_quality(df)
 
-        st.subheader("📊 Data Quality")
+        st.write("Data Quality")
         st.dataframe(conv_summary)
 
         progress.progress(20)
 
-        # -------------------------
-        # Step 2: Diurnal
-        # -------------------------
         from modules.diurnal import run_diurnal_analysis
         results.update(run_diurnal_analysis(df, valid_columns))
 
         progress.progress(40)
 
-        # -------------------------
-        # Step 3: Seasonal
-        # -------------------------
         from modules.season_detection import detect_seasons
         seasons, _ = detect_seasons(df)
 
@@ -112,44 +96,38 @@ if uploaded_file is not None:
 
         progress.progress(60)
 
-        # -------------------------
-        # Step 4: Correlation
-        # -------------------------
         from modules.met_correlation import run_correlation_analysis
         results.update(run_correlation_analysis(df, valid_columns))
 
         progress.progress(75)
 
-        # -------------------------
-        # Step 5: Roses
-        # -------------------------
         from modules.roses import run_roses_analysis
         results.update(run_roses_analysis(df, valid_columns))
 
         progress.progress(85)
 
-        # -------------------------
-        # Step 6: AQI
-        # -------------------------
         from modules.aqi import run_aqi_analysis
         results.update(run_aqi_analysis(df))
 
         progress.progress(100)
 
+        # ✅ CRITICAL LINE
         st.session_state.analysis_done = True
+
         st.success("✅ Analysis Complete")
 
 # -----------------------------
-# 📊 RESULTS + KMZ + DOWNLOAD
+# 📊 RESULTS (ALWAYS OUTSIDE BUTTON)
 # -----------------------------
 if st.session_state.analysis_done:
 
     results = st.session_state.results
+    df = st.session_state.df.copy()
 
     st.header("📊 Results")
 
     if not results:
-        st.warning("No results generated")
+        st.warning("No results found")
     else:
         for name, file in results.items():
             if name.endswith(".png"):
@@ -160,21 +138,15 @@ if st.session_state.analysis_done:
     # -----------------------------
     st.header("🌍 KMZ Generator")
 
-    df = df.copy()
-    df.index = pd.to_datetime(df.index)
-
-    available_years = sorted(df.index.year.unique())
-    year_month_map = {
-        y: sorted(df[df.index.year == y].index.month.unique())
-        for y in available_years
-    }
+    df['From Date'] = pd.to_datetime(df['From Date'], format='mixed', dayfirst=True)
+    df = df.set_index('From Date')
 
     latitude = st.number_input("Latitude", value=20.345)
     longitude = st.number_input("Longitude", value=85.811)
 
     pollutant_options = [
         col for col in df.columns
-        if col not in ['WS (m/s)','WD (degree)','AT (C)','RH (%)']
+        if col not in ['WS (m/s)', 'WD (degree)', 'AT (C)', 'RH (%)']
     ]
 
     kmz_requests = []
@@ -186,19 +158,19 @@ if st.session_state.analysis_done:
         if not use:
             continue
 
-        year = st.selectbox("Year", available_years, key=f"year_{i}")
-        month = st.selectbox("Month", year_month_map[year], key=f"month_{i}")
+        year = st.selectbox("Year", sorted(df.index.year.unique()), key=f"y_{i}")
+        month = st.selectbox("Month", sorted(df[df.index.year == year].index.month.unique()), key=f"m_{i}")
 
-        start_day = st.number_input("Start Day", 1, 31, 1, key=f"s_{i}")
-        end_day   = st.number_input("End Day", 1, 31, 7, key=f"e_{i}")
+        start = st.number_input("Start Day", 1, 31, 1, key=f"s_{i}")
+        end   = st.number_input("End Day", 1, 31, 7, key=f"e_{i}")
 
         pols = st.multiselect("Pollutants", pollutant_options, key=f"p_{i}")
 
         kmz_requests.append({
             "year": year,
             "month": month,
-            "start_day": start_day,
-            "end_day": end_day,
+            "start_day": start,
+            "end_day": end,
             "pollutants": pols
         })
 
@@ -208,8 +180,7 @@ if st.session_state.analysis_done:
     if st.button("🌍 Generate KMZ", key="kmz_btn"):
 
         if not kmz_requests:
-            st.warning("No KMZ requests selected")
-
+            st.warning("No KMZ selected")
         else:
             from modules.kmz import run_kmz_generation
 
@@ -221,20 +192,18 @@ if st.session_state.analysis_done:
             )
 
             st.session_state.results.update(kmz_results)
-
-            st.success("✅ KMZ Generated")
+            st.success("KMZ generated")
 
     # -----------------------------
     # 📦 DOWNLOAD
     # -----------------------------
     from modules.utils import create_zip
 
-    if st.session_state.results:
-        zip_buffer = create_zip(st.session_state.results)
+    zip_buffer = create_zip(st.session_state.results)
 
-        st.download_button(
-            "⬇️ Download Results",
-            data=zip_buffer,
-            file_name="results.zip",
-            mime="application/zip"
-        )
+    st.download_button(
+        "⬇️ Download Results",
+        data=zip_buffer,
+        file_name="results.zip",
+        mime="application/zip"
+    )
