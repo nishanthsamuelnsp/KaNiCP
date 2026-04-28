@@ -44,8 +44,7 @@ if uploaded_file is not None:
         st.success("✅ Data format is correct!")
         df['From Date'] = pd.to_datetime(df['From Date'], format='%d/%m/%Y %H:%M:%S')
         df['To Date'] = pd.to_datetime(df['To Date'], format='%d/%m/%Y %H:%M:%S')
-        df = df.set_index('From Date')
-        df = df.replace(0, np.nan)
+       
         # Convert datetime
 
 
@@ -59,7 +58,9 @@ if uploaded_file is not None:
             st.error("❌ Invalid To Date format detected.")
         else:
             st.success("⏱ To Date format is valid!")
-
+        
+        df = df.set_index('From Date')
+        df = df.replace(0, np.nan)
             # --- Run your analysis ---
             if st.button("Run Analysis"):
                 st.write("🚀 Running analysis...")
