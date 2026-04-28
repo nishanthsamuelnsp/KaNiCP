@@ -203,7 +203,7 @@ if uploaded_file is not None:
             # 🧪 Pollutant filtering base
             # -------------------------
             pollutant_options = [
-                col for col in valid_columns
+                col for col in v_cols
                 if col not in ['WS (m/s)', 'WD (degree)', 'AT (C)', 'RH (%)', 'SR (W/mt2)']
             ]
             
