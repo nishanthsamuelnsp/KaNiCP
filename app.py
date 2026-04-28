@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import traceback
 
 # -----------------------------
 # SESSION STATE INIT
@@ -21,13 +22,43 @@ st.set_page_config(page_title="Air Pollution Analysis App", layout="wide")
 st.title("🌍 Air Pollution Analysis Tool")
 
 # -----------------------------
+# LOGGER (UI DEBUG)
+# -----------------------------
+log_box = st.empty()
+
+def log(msg):
+    log_box.write(f"🔹 {msg}")
+
+# -----------------------------
+# SAFE EXECUTOR
+# -----------------------------
+def safe_run(step_name, func, *args):
+    try:
+        log(f"{step_name} started")
+
+        output = func(*args)
+
+        if output is None:
+            st.warning(f"⚠️ {step_name} returned None")
+            return {}
+
+        if not isinstance(output, dict):
+            st.error(f"❌ {step_name} must return dict")
+            st.stop()
+
+        log(f"{step_name} completed")
+        return output
+
+    except Exception:
+        st.error(f"❌ {step_name} crashed")
+        st.text(traceback.format_exc())
+        st.stop()
+
+# -----------------------------
 # INSTRUCTIONS
 # -----------------------------
 st.header("📌 Instructions")
-st.markdown("""
-- Upload **hourly air quality data**
-- CSV format required
-""")
+st.markdown("- Upload hourly air pollution CSV")
 
 # -----------------------------
 # SAMPLE FILE
@@ -38,12 +69,11 @@ with open("sample_air_pollution_data.csv", "rb") as file:
 # -----------------------------
 # FILE UPLOAD
 # -----------------------------
-uploaded_file = st.file_uploader("📤 Upload your dataset", type=["csv"])
-st.write("File uploaded")
-if uploaded_file is not None:
+uploaded_file = st.file_uploader("📤 Upload dataset", type=["csv"])
+
+if uploaded_file:
 
     df = pd.read_csv(uploaded_file)
-    st.subheader("📊 Preview")
     st.write(df.head())
 
     # -----------------------------
@@ -68,52 +98,47 @@ if uploaded_file is not None:
     df['To Date']   = pd.to_datetime(df['To Date'],   format='mixed', dayfirst=True, errors='coerce')
 
     if df['From Date'].isnull().any():
-        st.error("❌ Invalid From Date format")
+        st.error("❌ Invalid From Date")
         st.stop()
 
-    df = df.set_index('From Date')
-    df = df.sort_index()
+    df = df.set_index('From Date').sort_index()
 
     # -----------------------------
-    # 🧪 DATA QUALITY (MOVED UP)
+    # DATA QUALITY (UPFRONT)
     # -----------------------------
-    st.header("🧪 Data Quality Check")
+    st.header("🧪 Data Quality")
 
     from modules.data_quality import check_data_quality
 
-    conv_summary, valid_columns, dropped_columns = check_data_quality(df)
+    conv_summary, valid_columns, dropped = check_data_quality(df)
 
     st.dataframe(conv_summary)
 
-    if dropped_columns:
-        st.warning(f"⚠️ Dropped (>30% missing): {', '.join(dropped_columns)}")
-    else:
-        st.success("✅ No columns dropped")
+    if dropped:
+        st.warning(f"Dropped: {dropped}")
 
     st.session_state.valid_columns = valid_columns
 
     # -----------------------------
-    # 🌍 KMZ CONFIG
+    # KMZ CONFIG
     # -----------------------------
-    st.header("🌍 KMZ Configuration (Optional)")
+    st.header("🌍 KMZ Configuration")
 
-    st.caption(f"📅 Data range: {df.index.min().date()} → {df.index.max().date()}")
+    st.caption(f"Range: {df.index.min()} → {df.index.max()}")
 
     latitude = st.number_input("Latitude", value=20.345)
     longitude = st.number_input("Longitude", value=85.811)
 
-    valid_columns = st.session_state.get("valid_columns", [])
-
     pollutant_options = [
         col for col in valid_columns
-        if col not in ['WS (m/s)', 'WD (degree)', 'AT (C)', 'RH (%)', 'SR (W/mt2)']
+        if col not in ['WS (m/s)','WD (degree)','AT (C)','RH (%)','SR (W/mt2)']
     ]
 
     kmz_requests = []
 
     for i in range(3):
-        st.subheader(f"Request {i+1}")
 
+        st.subheader(f"Request {i+1}")
         use = st.checkbox("Enable", key=f"use_{i}")
 
         if not use:
@@ -139,85 +164,74 @@ if uploaded_file is not None:
             "pollutants": pols
         })
 
-    skip_kmz = st.checkbox("⏭️ Skip KMZ generation")
-    st.write("Kmz collected com")
+    skip_kmz = st.checkbox("⏭️ Skip KMZ")
+
     # -----------------------------
-    # 🚀 RUN ANALYSIS
+    # RUN ANALYSIS
     # -----------------------------
     if st.button("🚀 Run Analysis"):
 
         st.session_state.results = {}
         results = st.session_state.results
 
-        progress = st.progress(0)
-
-        valid_columns = st.session_state.get("valid_columns", [])
+        valid_columns = st.session_state.valid_columns
 
         # -------------------------
-        # DIURNAL (UNCHANGED)
+        # DIURNAL
         # -------------------------
-
+        from modules.diurnal import run_diurnal_analysis
+        results.update(safe_run("Diurnal", run_diurnal_analysis, df, valid_columns))
 
         # -------------------------
         # SEASON DETECTION
         # -------------------------
-        try:
-            from modules.season_detection import detect_seasons
-            seasons, _ = detect_seasons(df)
-        except Exception as e:
-            st.error(f"❌ Season detection failed: {e}")
-            st.stop()
+        from modules.season_detection import detect_seasons
 
-        progress.progress(40)
+        try:
+            log("Season detection started")
+            seasons, _ = detect_seasons(df)
+            log("Season detection done")
+        except Exception:
+            st.error("❌ Season detection failed")
+            st.text(traceback.format_exc())
+            st.stop()
 
         # -------------------------
         # SEASONAL
         # -------------------------
         from modules.seasonal import run_seasonal_analysis
-        results.update(run_seasonal_analysis(df, valid_columns, seasons))
-        progress.progress(60)
-        st.write("Seas com")    
+        results.update(safe_run("Seasonal", run_seasonal_analysis, df, valid_columns, seasons))
+
         # -------------------------
         # CORRELATION
         # -------------------------
         from modules.met_correlation import run_correlation_analysis
-        results.update(run_correlation_analysis(df, valid_columns))
-        progress.progress(75)
-        st.write("Corr com")    
+        results.update(safe_run("Correlation", run_correlation_analysis, df, valid_columns))
+
         # -------------------------
         # ROSES
         # -------------------------
-
+        from modules.roses import run_roses_analysis
+        results.update(safe_run("Roses", run_roses_analysis, df, valid_columns))
 
         # -------------------------
         # AQI
         # -------------------------
         from modules.aqi import run_aqi_analysis
-        results.update(run_aqi_analysis(df))
-        progress.progress(95)
-        st.write("Aqi com")
+        results.update(safe_run("AQI", run_aqi_analysis, df))
+
         # -------------------------
         # KMZ
         # -------------------------
         if not skip_kmz and kmz_requests:
             from modules.kmz import run_kmz_generation
-
-            kmz_results = run_kmz_generation(
-                df,
-                kmz_requests,
-                latitude,
-                longitude
-            )
-
-            results.update(kmz_results)
-
-        progress.progress(100)
+            results.update(safe_run("KMZ", run_kmz_generation, df, kmz_requests, latitude, longitude))
 
         st.session_state.analysis_done = True
         st.success("✅ Analysis Complete")
 
 # -----------------------------
-# 📊 RESULTS + DOWNLOAD
+# RESULTS + DOWNLOAD
 # -----------------------------
 if st.session_state.analysis_done:
 
@@ -226,7 +240,7 @@ if st.session_state.analysis_done:
     results = st.session_state.results
 
     if not results:
-        st.warning("⚠️ No results generated")
+        st.warning("No results available")
     else:
         for name, file in results.items():
             if name.endswith(".png"):
@@ -239,6 +253,6 @@ if st.session_state.analysis_done:
     st.download_button(
         "⬇️ Download Results ZIP",
         zip_buffer,
-        file_name="air_pollution_results.zip",
+        file_name="results.zip",
         mime="application/zip"
     )
