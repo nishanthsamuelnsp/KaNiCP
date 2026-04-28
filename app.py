@@ -61,7 +61,7 @@ if uploaded_file is not None:
         else:
             st.success("⏱ To Date format is valid!")
         
-        
+        df = df.set_index('From Date')
             # --- Run your analysis ---
             if st.button("Run Analysis"):
                 st.session_state.run_analysis = True
