@@ -36,19 +36,25 @@ if uploaded_file is not None:
     st.write(df.head())
 
     # --- Validation ---
-    required_columns = ["FromDate","ToDate", "PM2.5 (ug/m3)", "PM10 (ug/m3)","NO (ug/m3)", "NO2 (ug/m3)","NOx (ppb)", "SO2 (ug/m3)", "CO (mg/m3)", "Ozone (ug/m3)","WS (m/s)","WD (degree)","AT (C)"]
+    required_columns = ["From Date","To Date", "PM2.5 (ug/m3)", "PM10 (ug/m3)","NO (ug/m3)", "NO2 (ug/m3)","NOx (ppb)", "SO2 (ug/m3)", "CO (mg/m3)", "Ozone (ug/m3)","WS (m/s)","WD (degree)","AT (C)"]
     
     missing_columns = [col for col in required_columns if col not in df.columns]
     if all(col in df.columns for col in required_columns):
         st.success("✅ Data format is correct!")
 
         # Convert datetime
-        df["Datetime"] = pd.to_datetime(df["Datetime"], errors="coerce")
+        df["From Date"] = pd.to_datetime(df["From Date"], errors="coerce")
 
-        if df["Datetime"].isnull().any():
-            st.error("❌ Invalid datetime format detected.")
+        if df["From Date"].isnull().any():
+            st.error("❌ Invalid From Date format detected.")
         else:
-            st.success("⏱ Datetime format is valid!")
+            st.success("⏱ From Date format is valid!")
+        df["To Date"] = pd.to_datetime(df["To Date"], errors="coerce")
+
+        if df["To Date"].isnull().any():
+            st.error("❌ Invalid To Date format detected.")
+        else:
+            st.success("⏱ To Date format is valid!")
 
             # --- Run your analysis ---
             if st.button("Run Analysis"):
