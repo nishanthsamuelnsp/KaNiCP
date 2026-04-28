@@ -187,10 +187,7 @@ if uploaded_file is not None:
         # -------------------------
         # ROSES
         # -------------------------
-        from modules.roses import run_roses_analysis
-        results.update(run_roses_analysis(df, valid_columns))
-        progress.progress(85)
-        st.write("Rose com")
+
 
         # -------------------------
         # AQI
