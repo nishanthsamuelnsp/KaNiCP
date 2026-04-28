@@ -111,7 +111,7 @@ def run_aqi_analysis(df):
     df['O3_8h'] = df['Ozone (ug/m3)'].rolling(8, min_periods=1).mean() if 'Ozone (ug/m3)' in df.columns else np.nan
     df['CO_8h'] = df['CO (mg/m3)'].rolling(8, min_periods=1).mean() if 'CO (mg/m3)' in df.columns else np.nan
 
-    annual_means = df.resample('Y').mean(numeric_only=True)
+    annual_means = df.resample('YE').mean(numeric_only=True)
 
     standards = {
         'SO2_24h': 80, 'SO2_Annual': 50,
