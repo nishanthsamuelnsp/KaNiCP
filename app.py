@@ -39,7 +39,7 @@ with open("sample_air_pollution_data.csv", "rb") as file:
 # FILE UPLOAD
 # -----------------------------
 uploaded_file = st.file_uploader("📤 Upload your dataset", type=["csv"])
-
+st.write("File uploaded")
 if uploaded_file is not None:
 
     df = pd.read_csv(uploaded_file)
@@ -140,7 +140,7 @@ if uploaded_file is not None:
         })
 
     skip_kmz = st.checkbox("⏭️ Skip KMZ generation")
-
+    st.write("Kmz collected com")
     # -----------------------------
     # 🚀 RUN ANALYSIS
     # -----------------------------
