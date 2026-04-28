@@ -10,13 +10,14 @@ def check_data_quality(df):
     ]
 
     # Ensure numeric coercion
-    df[cols_to_check] = df[cols_to_check].apply(pd.to_numeric, errors='coerce')
+    existing_cols = [col for col in cols_to_check if col in df.columns]
+    df[existing_cols] = df[existing_cols].apply(pd.to_numeric, errors='coerce')
 
     summary = {}
     valid_columns = []
     dropped_columns = []
 
-    for col in cols_to_check:
+    for col in existing_cols:
         if col in df.columns:
             total = len(df[col])
             nan_count = df[col].isna().sum()
