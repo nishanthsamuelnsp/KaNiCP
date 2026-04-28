@@ -41,7 +41,7 @@ if uploaded_file is not None:
     missing_columns = [col for col in required_columns if col not in df.columns]
     if all(col in df.columns for col in required_columns):
         st.success("✅ Data format is correct!")
-        df['From Date'] = pd.to_datetime(df['From Date'], format='%m/%d/%Y %H:%M')
+        df['From Date'] = pd.to_datetime(df['From Date'], format='%d/%m/%Y %H:%M')
         df['To Date'] = pd.to_datetime(df['To Date'], format='%m/%d/%Y %I:%M:%S %p')
         df = df.set_index('From Date')
         df = df.replace(0, np.nan)
