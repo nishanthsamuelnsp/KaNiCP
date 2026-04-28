@@ -46,10 +46,8 @@ if uploaded_file is not None:
         #df['To Date'] = pd.to_datetime(df['To Date'], format='%d/%m/%Y %H:%M:%S')
        
         # Convert datetime
-
-        df.columns = df.columns.str.strip()
-
-        df['From Date'] = pd.to_datetime(df['From Date'], errors='coerce')
+        df['From Date'] = pd.to_datetime(df['From Date'], format='mixed', dayfirst=True, errors='coerce')
+        df['To Date']   = pd.to_datetime(df['To Date'],   format='mixed', dayfirst=True, errors='coerce')
 
 
         if df["From Date"].isnull().any():
