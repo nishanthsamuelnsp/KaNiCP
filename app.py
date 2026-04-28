@@ -35,7 +35,7 @@ if uploaded_file is not None:
     st.write(df.head())
 
     # --- Validation ---
-    required_columns = ["FromDate","ToDate", "PM2.5 (ug/m3)", "PM10 (ug/m3)","NO (ug/m3)", "NO2 (ug/m3)","NOx (ppb)", "SO2 (ug/m3)", "CO (mg/m3)", "O3","WS (m/s)","WD (degree)","AT (C)"]
+    required_columns = ["FromDate","ToDate", "PM2.5 (ug/m3)", "PM10 (ug/m3)","NO (ug/m3)", "NO2 (ug/m3)","NOx (ppb)", "SO2 (ug/m3)", "CO (mg/m3)", "Ozone (ug/m3)","WS (m/s)","WD (degree)","AT (C)"]
 
     if all(col in df.columns for col in required_columns):
         st.success("✅ Data format is correct!")
