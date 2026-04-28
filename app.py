@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 st.write("🔁 Script reran")
+
 if "results" not in st.session_state:
     st.session_state.results = {}
 
@@ -44,7 +45,7 @@ if uploaded_file is not None:
 
     # --- Validation ---
     required_columns = ["From Date","To Date", "PM2.5 (ug/m3)", "PM10 (ug/m3)","NO (ug/m3)", "NO2 (ug/m3)","NOx (ppb)", "SO2 (ug/m3)", "CO (mg/m3)", "Ozone (ug/m3)","WS (m/s)","WD (degree)","AT (C)"]
-    
+    v_cols =[]
     missing_columns = [col for col in required_columns if col not in df.columns]
     if all(col in df.columns for col in required_columns):
         st.success("✅ Data format is correct!")
@@ -87,7 +88,7 @@ if uploaded_file is not None:
                 
                 
                 conv_summary, valid_columns, dropped_columns = check_data_quality(df)
-                
+                v_cols = valid_columns
                 st.subheader("📊 Data Quality Summary")
                 st.dataframe(conv_summary)
                 
@@ -203,7 +204,7 @@ if uploaded_file is not None:
             # 🧪 Pollutant filtering base
             # -------------------------
             pollutant_options = [
-                col for col in valid_columns
+                col for col in v_cols
                 if col not in ['WS (m/s)', 'WD (degree)', 'AT (C)', 'RH (%)', 'SR (W/mt2)']
             ]
             
