@@ -26,7 +26,8 @@ with open("sample_air_pollution_data.csv", "rb") as file:
     )
 
 # --- File upload ---
-uploaded_file = st.file_uploader("📤 Upload your dataset", type=["csv"])
+uploaded_file = st.file_uploader("📤 Upload your dataset", type=["csv"],
+    accept_multiple_files=False)
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
@@ -36,7 +37,8 @@ if uploaded_file is not None:
 
     # --- Validation ---
     required_columns = ["FromDate","ToDate", "PM2.5 (ug/m3)", "PM10 (ug/m3)","NO (ug/m3)", "NO2 (ug/m3)","NOx (ppb)", "SO2 (ug/m3)", "CO (mg/m3)", "Ozone (ug/m3)","WS (m/s)","WD (degree)","AT (C)"]
-
+    
+    missing_columns = [col for col in required_columns if col not in df.columns]
     if all(col in df.columns for col in required_columns):
         st.success("✅ Data format is correct!")
 
@@ -59,4 +61,5 @@ if uploaded_file is not None:
                 # st.write(results)
 
     else:
-        st.error("❌ Missing required columns!")
+        st.error(f"❌ Missing required columns: {', '.join(missing_columns)}")
+        st.stop()
