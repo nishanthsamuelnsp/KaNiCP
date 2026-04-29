@@ -64,7 +64,7 @@ def detect_seasons(df):
     # CASE 1
     # (you wrote >12, assuming wrap case → interpret as winter wraps year end)
     # -----------------------------
-    if w_min < 6 and w_max > 6:  # wrap condition (rare but safe)
+    if 12 in winter and 1 in winter:  # wrap condition (rare but safe)
 
         val = w_min + 1
         while val != m_min:
