@@ -1,9 +1,8 @@
-import os
 import io
 import zipfile
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
+import pandas as pd
 import re
 
 
@@ -15,7 +14,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
     df.index = pd.to_datetime(df.index)
 
     # =========================================================
-    # 🎨 FRAME GENERATOR (JPEG - NO TRANSPARENCY)
+    # 🎨 FRAME GENERATOR (JPEG, NO TRANSPARENCY)
     # =========================================================
     def generate_frame(row, pollutant):
 
@@ -28,7 +27,6 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
 
         fig, ax = plt.subplots(figsize=(5, 5))
 
-        # IMPORTANT: opaque background (NO transparency)
         ax.set_facecolor("white")
         fig.patch.set_facecolor("white")
 
@@ -60,7 +58,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
         return buf.getvalue()
 
     # =========================================================
-    # 🚀 KMZ GENERATION
+    # 🚀 MAIN LOOP
     # =========================================================
     for i, req in enumerate(kmz_requests):
 
@@ -90,7 +88,27 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
             if pol not in sub.columns:
                 continue
 
+            # =====================================================
+            # ✅ SAFE FILE NAME (FIX YOU REQUESTED)
+            # =====================================================
             safe_pol = re.sub(r'[^A-Za-z0-9_]+', '_', pol)
+
+            frames = []
+
+            # =====================================================
+            # 🎞 GENERATE FRAMES
+            # =====================================================
+            for _, row in sub.iterrows():
+                frame = generate_frame(row, pol)
+                if frame:
+                    frames.append(frame)
+
+            if not frames:
+                continue
+
+            # =====================================================
+            # 🌍 BUILD KMZ
+            # =====================================================
             kmz_buffer = io.BytesIO()
 
             kml = [
@@ -103,9 +121,9 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
             north, south = lat + 0.05, lat - 0.05
             east, west = lon + 0.05, lon - 0.05
 
-            # =====================================================
-            # 🖼 BASEMAP OVERLAY (STATIC)
-            # =====================================================
+            # -----------------------------
+            # BASEMAP
+            # -----------------------------
             kml += [
                 '<GroundOverlay>',
                 '<name>Basemap</name>',
@@ -121,39 +139,37 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                 '</GroundOverlay>'
             ]
 
-            # =====================================================
-            # 🖼 FRAME OVERLAYS (JPEG SWAPS)
-            # =====================================================
-            for j, (ts, row) in enumerate(sub.iterrows()):
+            # -----------------------------
+            # ZIP + FRAMES
+            # -----------------------------
+            with zipfile.ZipFile(kmz_buffer, "w", zipfile.ZIP_DEFLATED) as kmz:
 
-                frame = generate_frame(row, pol)
-                if frame is None:
-                    continue
+                for j, (ts, frame) in enumerate(zip(sub.index, frames)):
 
-                img_name = f"images/frame_{j:04d}.jpg"
-                kmz_buffer.writestr(img_name, frame)
+                    img_name = f"images/frame_{j:04d}.jpg"
+                    kmz.writestr(img_name, frame)
 
-                timestamp = ts.strftime("%Y-%m-%dT%H:%M:%S")
+                    timestamp = ts.strftime("%Y-%m-%dT%H:%M:%S")
 
-                kml += [
-                    '<GroundOverlay>',
-                    f'<name>{timestamp}</name>',
-                    f'<TimeStamp><when>{timestamp}</when></TimeStamp>',
-                    '<Icon>',
-                    f'<href>{img_name}</href>',
-                    '</Icon>',
-                    '<LatLonBox>',
-                    f'<north>{north}</north>',
-                    f'<south>{south}</south>',
-                    f'<east>{east}</east>',
-                    f'<west>{west}</west>',
-                    '</LatLonBox>',
-                    '</GroundOverlay>'
-                ]
+                    kml += [
+                        '<GroundOverlay>',
+                        f'<name>{timestamp}</name>',
+                        f'<TimeStamp><when>{timestamp}</when></TimeStamp>',
+                        '<Icon>',
+                        f'<href>{img_name}</href>',
+                        '</Icon>',
+                        '<LatLonBox>',
+                        f'<north>{north}</north>',
+                        f'<south>{south}</south>',
+                        f'<east>{east}</east>',
+                        f'<west>{west}</west>',
+                        '</LatLonBox>',
+                        '</GroundOverlay>'
+                    ]
 
-            kml += ['</Document>', '</kml>']
+                kml += ['</Document>', '</kml>']
 
-            kmz_buffer.writestr("doc.kml", "\n".join(kml))
+                kmz.writestr("doc.kml", "\n".join(kml))
 
             kmz_buffer.seek(0)
 
