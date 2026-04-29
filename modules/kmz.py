@@ -71,11 +71,11 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
         info_text = (
             f"🕒 Time: {ts.strftime('%Y-%m-%d %H:%M:%S')}\n"
             f"📍 Location: {location_name}\n"
-            f"🌍 Coordinates: {lat:.3f}, {lon:.3f}\n"
-            f"🌬 Wind Speed: {ws:.1f} m/s | Dir: {wd:.0f}°\n"
-            f"🧪 {pollutant}: {val:.1f} µg/m³\n"
-            f"⚖ Limit: {limit} µg/m³\n"
-            f"🚦 Status: {status}"
+            
+            f"🌬 Wind Speed: {ws:.1f} m/s \n"
+            f"🧪 {pollutant}: {val:.1f} \n"
+            f"⚖ Limit: {limit} ³"
+            
         )
 
         ax.text(
