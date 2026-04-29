@@ -129,6 +129,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
             gif_buf = io.BytesIO()
             frames[0].save(
                 gif_buf,
+                format="GIF",
                 save_all=True,
                 append_images=frames[1:],
                 duration=300,
