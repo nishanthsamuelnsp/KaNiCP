@@ -160,7 +160,7 @@ if uploaded_file is not None:
     # -----------------------------
     if st.session_state.run_analysis:
 
-        st.write("inside analysis section")
+        st.write("Starting analysis, if you see the progress bar go back and forth, it's normal. Be patient 🧘")
 
         results = st.session_state.results
         progress = st.progress(0)
