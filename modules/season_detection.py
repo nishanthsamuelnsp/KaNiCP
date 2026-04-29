@@ -6,12 +6,12 @@ def detect_seasons(df):
     df = df.copy()
 
     # -----------------------------
-    # Monthly aggregation (multi-year safe)
+    # Monthly aggregation
     # -----------------------------
     monthly = df.groupby([df.index.year, df.index.month]).mean(numeric_only=True)
-    monthly = monthly.groupby(level=1).mean()  # avg across years
+    monthly = monthly.groupby(level=1).mean()
 
-    all_months = set(range(1, 13))
+    all_months = list(range(1, 13))
 
     # -----------------------------
     # Identify columns
@@ -22,12 +22,11 @@ def detect_seasons(df):
     # -----------------------------
     # WINTER (lowest temp)
     # -----------------------------
-    winter_months = []
+    winter = []
     if temp_col and temp_col in monthly.columns:
         temp_series = monthly[temp_col].dropna()
-
         threshold = temp_series.quantile(0.25)
-        winter_months = temp_series[temp_series <= threshold].index.tolist()
+        winter = temp_series[temp_series <= threshold].index.tolist()
 
     # -----------------------------
     # MONSOON (high RH)
@@ -35,80 +34,80 @@ def detect_seasons(df):
     if rh_col and rh_col in monthly.columns:
         rh_series = monthly[rh_col].dropna()
         threshold = rh_series.quantile(0.75)
-        monsoon_months = rh_series[rh_series >= threshold].index.tolist()
+        monsoon = rh_series[rh_series >= threshold].index.tolist()
     else:
-        # fallback India
-        monsoon_months = [6, 7, 8, 9]
+        monsoon = [6, 7, 8, 9]
 
     # -----------------------------
-    # CLEAN + SORT
+    # CLEAN
     # -----------------------------
-    winter_months = sorted(set(winter_months))
-    monsoon_months = sorted(set(monsoon_months))
-
-    # -----------------------------
-    # PRE / POST MONSOON (CIRCULAR LOGIC)
-    # -----------------------------
-    pre_monsoon = []
-    post_monsoon = []
-
-    if winter_months and monsoon_months:
-
-        w_end = max(winter_months)
-        m_start = min(monsoon_months)
-        m_end = max(monsoon_months)
-        w_start = min(winter_months)
-
-        # helper for circular range
-        def circular_range(start, end):
-            months = []
-            m = start
-            while m != end:
-                months.append(m)
-                m = m + 1 if m < 12 else 1
-            return months
-
-        # Pre: winter end → monsoon start
-        pre_monsoon = circular_range(w_end + 1 if w_end < 12 else 1, m_start)
-
-        # Post: monsoon end → winter start
-        post_monsoon = circular_range(m_end + 1 if m_end < 12 else 1, w_start)
+    winter = sorted(set(winter))
+    monsoon = sorted(set(monsoon))
 
     # -----------------------------
-    # INITIAL ASSIGNMENT
+    # REMOVE OVERLAP (priority: monsoon > winter)
     # -----------------------------
-    assigned = set(winter_months + monsoon_months + pre_monsoon + post_monsoon)
+    winter = [m for m in winter if m not in monsoon]
 
     # -----------------------------
-    # FILL MISSING MONTHS (CRITICAL FIX)
+    # REMAINING MONTHS
     # -----------------------------
-    missing = sorted(all_months - assigned)
+    assigned = set(winter + monsoon)
+    remaining = sorted(set(all_months) - assigned)
 
-    for m in missing:
-        # assign based on proximity
-        if winter_months:
-            dist_w = min(abs(m - wm) for wm in winter_months)
+    # -----------------------------
+    # SPLIT REMAINING INTO 2 BLOCKS
+    # -----------------------------
+    # First block = Pre-Monsoon (before monsoon start)
+    # Second block = Post-Monsoon (after monsoon end)
+
+    if monsoon:
+        m_start = min(monsoon)
+        m_end   = max(monsoon)
+    else:
+        m_start, m_end = 6, 9
+
+    pre = [m for m in remaining if m < m_start]
+    post = [m for m in remaining if m > m_end]
+
+    # -----------------------------
+    # HANDLE SMALL SEASONS (<1 month)
+    # -----------------------------
+    def merge_small(season, name):
+        if len(season) < 1:
+            return
+
+        # Decide nearest: winter or monsoon
+        # based on count (smaller gets priority)
+        if len(winter) < len(monsoon):
+            target = "winter"
+        elif len(monsoon) < len(winter):
+            target = "monsoon"
         else:
-            dist_w = np.inf
+            # tie breaker → later season preference
+            if name == "post":
+                target = "winter"
+            else:
+                target = "monsoon"
 
-        if monsoon_months:
-            dist_m = min(abs(m - mm) for mm in monsoon_months)
+        if target == "winter":
+            winter.extend(season)
         else:
-            dist_m = np.inf
+            monsoon.extend(season)
 
-        if dist_w < dist_m:
-            winter_months.append(m)
-        else:
-            monsoon_months.append(m)
+        season.clear()
+
+    merge_small(pre, "pre")
+    merge_small(post, "post")
 
     # -----------------------------
     # FINAL SORT + UNIQUE
     # -----------------------------
     seasons = {
-        "Winter": sorted(set(winter_months)),
-        "Monsoon": sorted(set(monsoon_months)),
-        "Pre-Monsoon": sorted(set(pre_monsoon)),
-        "Post-Monsoon": sorted(set(post_monsoon)),
+        "Winter": sorted(set(winter)),
+        "Monsoon": sorted(set(monsoon)),
+        "Pre-Monsoon": sorted(set(pre)),
+        "Post-Monsoon": sorted(set(post)),
     }
 
     return seasons, monthly
