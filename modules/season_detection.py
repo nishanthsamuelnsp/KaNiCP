@@ -11,7 +11,7 @@ def detect_seasons(df):
     monthly = df.groupby([df.index.year, df.index.month]).mean(numeric_only=True)
     monthly = monthly.groupby(level=1).mean()
 
-    months_all = list(range(1, 13))
+    all_months = set(range(1, 13))
 
     # -----------------------------
     # Identify columns
@@ -41,96 +41,115 @@ def detect_seasons(df):
     # -----------------------------
     # CLEAN + PRIORITY
     # -----------------------------
-    winter = set(winter)
-    monsoon = set(monsoon)
+    winter = sorted(set(winter))
+    monsoon = sorted(set(monsoon))
 
-    # Monsoon priority
-    winter = winter - monsoon
-
-    # -----------------------------
-    # LABEL ARRAY (1–12)
-    # -----------------------------
-    labels = {m: None for m in months_all}
-
-    for m in winter:
-        labels[m] = "Winter"
-
-    for m in monsoon:
-        labels[m] = "Monsoon"
+    # remove overlap (monsoon priority)
+    winter = [m for m in winter if m not in monsoon]
 
     # -----------------------------
-    # FILL GAPS SEQUENTIALLY
+    # BASIC VALIDATION
     # -----------------------------
-    current_mode = None
+    if not winter or not monsoon:
+        return default_seasons(), monthly
 
-    for m in months_all:
+    pre = []
+    post = []
 
-        if labels[m] is not None:
-            current_mode = labels[m]
-            continue
-
-        # Decide based on upcoming known season
-        future = [labels[x] for x in months_all[m:] if labels[x] is not None]
-
-        next_known = future[0] if future else None
-
-        if next_known == "Monsoon":
-            labels[m] = "Pre-Monsoon"
-        elif next_known == "Winter":
-            labels[m] = "Post-Monsoon"
-        else:
-            # fallback
-            labels[m] = "Post-Monsoon"
+    w_min = min(winter)
+    w_max = max(winter)
+    m_min = min(monsoon)
 
     # -----------------------------
-    # GROUP INTO SEASONS
+    # CASE 1
+    # (you wrote >12, assuming wrap case → interpret as winter wraps year end)
     # -----------------------------
-    seasons = {
-        "Winter": [],
-        "Monsoon": [],
-        "Pre-Monsoon": [],
-        "Post-Monsoon": []
-    }
+    if w_min < 6 and w_max > 6:  # wrap condition (rare but safe)
 
-    for m, s in labels.items():
-        seasons[s].append(m)
+        val = w_min + 1
+        while val != m_min:
+            if val > 12:
+                val = 1
+            pre.append(val)
+            val += 1
 
     # -----------------------------
-    # HANDLE SMALL SEASONS (<1 month)
+    # CASE 2
+    # winter touches December
     # -----------------------------
-    def merge_if_small(season_name):
-        if len(seasons[season_name]) < 1:
-            return
+    elif w_min < 12 and w_max == 12:
 
-        if season_name == "Pre-Monsoon":
-            target = "Monsoon"
-        elif season_name == "Post-Monsoon":
-            target = "Winter"
-        else:
-            return
+        val = 1
+        while val < m_min:
+            pre.append(val)
+            val += 1
 
-        # size-based override
-        if len(seasons["Winter"]) < len(seasons["Monsoon"]):
-            target = "Winter"
-        elif len(seasons["Monsoon"]) < len(seasons["Winter"]):
-            target = "Monsoon"
+    # -----------------------------
+    # CASE 3
+    # winter entirely before Dec
+    # -----------------------------
+    elif w_min < 12 and w_max < 12:
 
-        # tie → later season preference
-        elif season_name == "Post-Monsoon":
-            target = "Winter"
-        else:
-            target = "Monsoon"
+        val = w_max + 1
 
-        seasons[target].extend(seasons[season_name])
-        seasons[season_name] = []
+        # go till 12
+        while val <= 12:
+            pre.append(val)
+            val += 1
 
-    merge_if_small("Pre-Monsoon")
-    merge_if_small("Post-Monsoon")
+        # wrap to 1
+        val = 1
+        while val < m_min:
+            pre.append(val)
+            val += 1
+
+    # -----------------------------
+    # FALLBACK
+    # -----------------------------
+    else:
+        return default_seasons(), monthly
+
+    # -----------------------------
+    # POST = everything else
+    # -----------------------------
+    assigned = set(winter + monsoon + pre)
+    post = list(all_months - assigned)
+
+    # -----------------------------
+    # HANDLE SINGLE MONTH EDGE
+    # -----------------------------
+    def merge_single(season):
+        if len(season) == 1:
+            if len(winter) < len(monsoon):
+                winter.extend(season)
+            else:
+                monsoon.extend(season)
+            return []
+        return season
+
+    pre = merge_single(pre)
+    post = merge_single(post)
 
     # -----------------------------
     # FINAL CLEAN
     # -----------------------------
-    for k in seasons:
-        seasons[k] = sorted(set(seasons[k]))
+    seasons = {
+        "Winter": sorted(set(winter)),
+        "Monsoon": sorted(set(monsoon)),
+        "Pre-Monsoon": sorted(set(pre)),
+        "Post-Monsoon": sorted(set(post)),
+    }
 
     return seasons, monthly
+
+
+# -----------------------------
+# DEFAULT FALLBACK
+# -----------------------------
+def default_seasons():
+    return {
+        "Winter": [12,1,2],
+        "Pre-Monsoon": [3,4,5],
+        "Monsoon": [6,7,8,9],
+        "Post-Monsoon": [10,11]
+    }
