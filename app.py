@@ -205,8 +205,8 @@ if uploaded_file is not None:
 
         # KMZ
         if not skip_kmz and kmz_requests:
-            from modules.kmz import run_kmz_generation
-            st.write("starting KMZ generation, this may take a while")
+            from modules.gpkggen import run_kmz_generation
+            st.write("starting KMZ, GPKG generation, this may take a while")
 
             kmz_results = run_kmz_generation(
                 df,
