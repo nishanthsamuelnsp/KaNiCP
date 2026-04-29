@@ -13,12 +13,6 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
     df = df.copy()
     df.index = pd.to_datetime(df.index)
 
-    if 'WD (degree)' not in df.columns or 'WS (m/s)' not in df.columns:
-        return results
-
-    # -----------------------------
-    # 🎨 FRAME GENERATOR
-    # -----------------------------
     def generate_frame(row, pollutant):
 
         wd = row['WD (degree)']
@@ -38,27 +32,11 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
         dx = ws * np.cos(np.deg2rad(wd))
         dy = ws * np.sin(np.deg2rad(wd))
 
-        ax.arrow(
-            cx, cy, dx, dy,
-            head_width=0.3,
-            head_length=0.4,
-            fc='blue',
-            ec='blue',
-            linewidth=1 + ws / 2
-        )
+        ax.arrow(cx, cy, dx, dy, head_width=0.3,
+                 head_length=0.4, fc='blue', ec='blue')
 
         color = 'green' if val < 60 else 'red'
-        circle = plt.Circle((cx, cy), val * 0.02, color=color, alpha=0.5)
-        ax.add_patch(circle)
-
-        ax.text(
-            0.5, -0.15,
-            f"{pollutant}\n{val:.1f} µg/m³ | WS: {ws:.1f}",
-            transform=ax.transAxes,
-            ha='center',
-            fontsize=9,
-            bbox=dict(facecolor='white', alpha=0.6, edgecolor='none')
-        )
+        ax.add_patch(plt.Circle((cx, cy), val * 0.02, color=color, alpha=0.4))
 
         ax.set_xlim(-5, 5)
         ax.set_ylim(-5, 5)
@@ -71,9 +49,6 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
 
         return buf.getvalue()
 
-    # -----------------------------
-    # 🚀 KMZ GENERATION
-    # -----------------------------
     for i, req in enumerate(kmz_requests):
 
         year = req["year"]
@@ -108,11 +83,22 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
 
             with zipfile.ZipFile(kmz_buffer, "w", zipfile.ZIP_DEFLATED) as kmz:
 
-                # -----------------------------
-                # STORE FRAMES
-                # -----------------------------
-                frame_files = []
+                kml = [
+                    '<?xml version="1.0" encoding="UTF-8"?>',
+                    '<kml xmlns="http://www.opengis.net/kml/2.2" '
+                    'xmlns:gx="http://www.google.com/kml/ext/2.2">',
+                    '<Document>',
+                    f'<name>{pol} Animation</name>'
+                ]
 
+                north, south = lat + 0.01, lat - 0.01
+                east, west = lon + 0.01, lon - 0.01
+
+                frame_ids = []
+
+                # -----------------------
+                # CREATE ALL FRAMES (hidden)
+                # -----------------------
                 for j, (ts, row) in enumerate(sub.iterrows()):
 
                     frame = generate_frame(row, pol)
@@ -122,58 +108,58 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                     img_name = f"images/frame_{j:05d}.png"
                     kmz.writestr(img_name, frame)
 
-                    frame_files.append((ts, img_name))
+                    frame_id = f"frame_{j}"
+                    frame_ids.append(frame_id)
 
-                # -----------------------------
-                # KML BASE
-                # -----------------------------
-                kml = [
-                    '<?xml version="1.0" encoding="UTF-8"?>',
-                    '<kml xmlns="http://www.opengis.net/kml/2.2" '
-                    'xmlns:gx="http://www.google.com/kml/ext/2.2">',
-                    '<Document>',
-                    f'<name>{pol} Animated KMZ</name>'
-                ]
+                    kml += [
+                        f'<GroundOverlay id="{frame_id}">',
+                        '<visibility>0</visibility>',
+                        '<Icon>',
+                        f'<href>{img_name}</href>',
+                        '</Icon>',
+                        '<LatLonBox>',
+                        f'<north>{north}</north>',
+                        f'<south>{south}</south>',
+                        f'<east>{east}</east>',
+                        f'<west>{west}</west>',
+                        '</LatLonBox>',
+                        '</GroundOverlay>',
+                    ]
 
-                # -----------------------------
-                # SINGLE OVERLAY
-                # -----------------------------
-                first_img = frame_files[0][1]
-
-                kml += [
-                    '<GroundOverlay id="overlay">',
-                    '<Icon>',
-                    f'<href>{first_img}</href>',
-                    '</Icon>',
-                    '<LatLonBox>',
-                    f'<north>{lat + 0.01}</north>',
-                    f'<south>{lat - 0.01}</south>',
-                    f'<east>{lon + 0.01}</east>',
-                    f'<west>{lon - 0.01}</west>',
-                    '</LatLonBox>',
-                    '</GroundOverlay>',
-                ]
-
-                # -----------------------------
-                # GX TOUR (THE MAGIC PART)
-                # -----------------------------
+                # -----------------------
+                # TOUR (VISIBILITY SWITCH)
+                # -----------------------
                 kml += [
                     '<gx:Tour>',
-                    '<name>animation</name>',
+                    '<name>play</name>',
                     '<gx:Playlist>'
                 ]
 
-                for ts, img in frame_files:
+                for j in range(len(frame_ids)):
 
                     kml += [
                         '<gx:AnimatedUpdate>',
-                        '<gx:duration>0.3</gx:duration>',
-                        '<Update>',
-                        '<IconStyle targetId="overlay">',
-                        '<Icon>',
-                        f'<href>{img}</href>',
-                        '</Icon>',
-                        '</IconStyle>',
+                        '<gx:duration>0.2</gx:duration>',
+                        '<Update>'
+                    ]
+
+                    # turn ALL off
+                    for fid in frame_ids:
+                        kml += [
+                            '<Change>',
+                            f'<GroundOverlay targetId="{fid}">',
+                            '<visibility>0</visibility>',
+                            '</GroundOverlay>',
+                            '</Change>'
+                        ]
+
+                    # turn current ON
+                    kml += [
+                        '<Change>',
+                        f'<GroundOverlay targetId="{frame_ids[j]}">',
+                        '<visibility>1</visibility>',
+                        '</GroundOverlay>',
+                        '</Change>',
                         '</Update>',
                         '</gx:AnimatedUpdate>'
                     ]
