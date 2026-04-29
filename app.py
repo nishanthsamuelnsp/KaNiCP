@@ -20,8 +20,8 @@ if "run_analysis" not in st.session_state:
 # -----------------------------
 # PAGE CONFIG
 # -----------------------------
-st.set_page_config(page_title="Air Pollution Analysis App", layout="wide")
-st.title("🌍 Air Pollution Analysis Tool")
+st.set_page_config(page_title="Pollizer", layout="wide")
+st.title("🌍 KaNiCP - Pollizer")
 
 # -----------------------------
 # INSTRUCTIONS
@@ -30,13 +30,16 @@ st.header("📌 Instructions")
 st.markdown("""
 - Upload **hourly air quality data**
 - CSV format required
+- Headers are modified from standard CAAQMS format, use template
 """)
 
 # -----------------------------
 # SAMPLE FILE
 # -----------------------------
+with open("template.csv", "rb") as file:
+    st.download_button("📥 Download Template", file, "template.csv")
 with open("sample_air_pollution_data.csv", "rb") as file:
-    st.download_button("📥 Download Sample Dataset", file, "sample.csv")
+    st.download_button("📥 Download Sample Data", file, "sample.csv")
 
 # -----------------------------
 # FILE UPLOAD
