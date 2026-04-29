@@ -3,9 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import io
 import zipfile
-
-import geopandas as gpd
-import contextily as ctx
+import re
 
 
 def run_kmz_generation(df, kmz_requests, lat, lon):
@@ -19,17 +17,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
         return results
 
     # -----------------------------
-    # 🌍 Prepare map base (ONCE)
-    # -----------------------------
-    gdf = gpd.GeoDataFrame(
-        geometry=gpd.points_from_xy([lon], [lat]),
-        crs="EPSG:4326"
-    ).to_crs(epsg=3857)
-
-    buffer_m = 5000  # 5 km buffer
-
-    # -----------------------------
-    # 🎨 Frame generator (MAP BASED)
+    # 🎨 Frame generator (TRANSPARENT)
     # -----------------------------
     def generate_frame(row, pollutant, ts):
 
@@ -40,28 +28,23 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
         if pd.isna(wd) or pd.isna(ws) or pd.isna(val):
             return None
 
-        fig, ax = plt.subplots(figsize=(6,6))
+        fig, ax = plt.subplots(figsize=(4,4))
 
-        # Map extent
-        x, y = gdf.geometry.x.iloc[0], gdf.geometry.y.iloc[0]
+        # Transparent background
+        fig.patch.set_alpha(0)
+        ax.set_facecolor("none")
 
-        ax.set_xlim(x - buffer_m, x + buffer_m)
-        ax.set_ylim(y - buffer_m, y + buffer_m)
-
-        # Add basemap
-        try:
-            ctx.add_basemap(ax, source=ctx.providers.OpenStreetMap.Mapnik)
-        except:
-            pass  # prevents crash if tiles fail
+        # Center
+        cx, cy = 0, 0
 
         # Wind vector
-        dx = ws * np.cos(np.deg2rad(wd)) * 200
-        dy = ws * np.sin(np.deg2rad(wd)) * 200
+        dx = ws * np.cos(np.deg2rad(wd))
+        dy = ws * np.sin(np.deg2rad(wd))
 
         ax.arrow(
-            x, y, dx, dy,
-            head_width=300,
-            head_length=500,
+            cx, cy, dx, dy,
+            head_width=0.3,
+            head_length=0.4,
             fc='blue',
             ec='blue',
             linewidth=1 + ws/2
@@ -69,27 +52,33 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
 
         # Pollutant circle
         color = 'green' if val < 60 else 'red'
-        circle = plt.Circle(
-            (x, y),
-            val * 10,
-            color=color,
-            alpha=0.3
-        )
+        circle = plt.Circle((cx, cy), val * 0.02, color=color, alpha=0.3)
         ax.add_patch(circle)
 
-        # Title + annotation
-        ax.set_title(f"{pollutant}\n{ts.strftime('%Y-%m-%d %H:%M')}")
+        # Text overlay
         ax.text(
-            0.5, -0.1,
-            f"{pollutant}: {val:.1f} | WS: {ws:.1f} m/s",
+            0.5, -0.15,
+            f"{pollutant}\n{val:.1f} µg/m³ | WS: {ws:.1f} m/s",
             transform=ax.transAxes,
-            ha='center'
+            ha='center',
+            fontsize=9,
+            color='black',
+            bbox=dict(facecolor='white', alpha=0.6, edgecolor='none')
         )
 
+        # Limits
+        ax.set_xlim(-5, 5)
+        ax.set_ylim(-5, 5)
         ax.set_axis_off()
 
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        plt.savefig(
+            buf,
+            format='png',
+            dpi=80,
+            bbox_inches='tight',
+            transparent=True   # 🔥 KEY
+        )
         buf.seek(0)
         plt.close(fig)
 
@@ -118,10 +107,17 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
         if sub.empty:
             continue
 
+        # 🔥 Frame reduction safeguard
+        if len(sub) > 300:
+            sub = sub.iloc[::3]
+
         for pol in pollutants:
 
             if pol not in sub.columns:
                 continue
+
+            # Safe filename
+            safe_pol = re.sub(r'[^A-Za-z0-9_]+', '_', pol)
 
             kmz_buffer = io.BytesIO()
 
@@ -134,12 +130,9 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                     f'<name>{pol} Dynamic Rose</name>'
                 ]
 
-                north, south = lat + 0.05, lat - 0.05
-                east, west = lon + 0.05, lon - 0.05
+                north, south = lat + 0.01, lat - 0.01
+                east, west = lon + 0.01, lon - 0.01
 
-                # -----------------------------
-                # 🔁 Frames + SINGLE timeline
-                # -----------------------------
                 for j, (ts, row) in enumerate(sub.iterrows()):
 
                     frame = generate_frame(row, pol, ts)
@@ -154,7 +147,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                     kml += [
                         '<GroundOverlay>',
                         f'<name>{ts}</name>',
-                        f'<TimeStamp><when>{timestamp}</when></TimeStamp>',  # ✅ FIXED
+                        f'<TimeStamp><when>{timestamp}</when></TimeStamp>',
                         '<Icon>',
                         f'<href>{img_name}</href>',
                         '</Icon>',
@@ -172,16 +165,8 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                 kmz.writestr("doc.kml", "\n".join(kml))
 
             kmz_buffer.seek(0)
-            safe_pol = (
-                pol.replace(" ", "_")
-                   .replace("/", "_")
-                   .replace("(", "")
-                   .replace(")", "")
-                   .replace(".", "")
-            )
-            
+
             fname = f"kmz/request_{i+1}/{safe_pol}.kmz"
-           
             results[fname] = kmz_buffer.getvalue()
 
     return results
