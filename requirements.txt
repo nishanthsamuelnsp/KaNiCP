@@ -6,3 +6,4 @@ seaborn
 windrose
 openpyxl
 geopandas
+contextily
