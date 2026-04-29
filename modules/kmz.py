@@ -4,64 +4,99 @@ import matplotlib.pyplot as plt
 import io
 import zipfile
 
+import geopandas as gpd
+import contextily as ctx
+
 
 def run_kmz_generation(df, kmz_requests, lat, lon):
 
     results = {}
 
     df = df.copy()
-    df.index = pd.to_datetime(df.index, errors='coerce')
-    df = df.sort_index()
+    df.index = pd.to_datetime(df.index)
 
-    required_cols = ['WD (degree)', 'WS (m/s)']
-    for col in required_cols:
-        if col not in df.columns:
-            return results
+    if 'WD (degree)' not in df.columns or 'WS (m/s)' not in df.columns:
+        return results
 
     # -----------------------------
-    # Frame generator (UNCHANGED VISUAL STYLE)
+    # 🌍 Prepare map base (ONCE)
     # -----------------------------
-    def generate_frame(row, pollutant):
+    gdf = gpd.GeoDataFrame(
+        geometry=gpd.points_from_xy([lon], [lat]),
+        crs="EPSG:4326"
+    ).to_crs(epsg=3857)
 
-        fig, ax = plt.subplots(figsize=(5,5))
+    buffer_m = 5000  # 5 km buffer
+
+    # -----------------------------
+    # 🎨 Frame generator (MAP BASED)
+    # -----------------------------
+    def generate_frame(row, pollutant, ts):
 
         wd = row['WD (degree)']
         ws = row['WS (m/s)']
         val = row[pollutant]
 
         if pd.isna(wd) or pd.isna(ws) or pd.isna(val):
-            plt.close(fig)
             return None
 
-        dx = ws * np.cos(np.deg2rad(wd))
-        dy = ws * np.sin(np.deg2rad(wd))
+        fig, ax = plt.subplots(figsize=(6,6))
+
+        # Map extent
+        x, y = gdf.geometry.x.iloc[0], gdf.geometry.y.iloc[0]
+
+        ax.set_xlim(x - buffer_m, x + buffer_m)
+        ax.set_ylim(y - buffer_m, y + buffer_m)
+
+        # Add basemap
+        try:
+            ctx.add_basemap(ax, source=ctx.providers.OpenStreetMap.Mapnik)
+        except:
+            pass  # prevents crash if tiles fail
+
+        # Wind vector
+        dx = ws * np.cos(np.deg2rad(wd)) * 200
+        dy = ws * np.sin(np.deg2rad(wd)) * 200
 
         ax.arrow(
-            0, 0, dx, dy,
-            head_width=0.3,
-            head_length=0.4,
+            x, y, dx, dy,
+            head_width=300,
+            head_length=500,
             fc='blue',
             ec='blue',
             linewidth=1 + ws/2
         )
 
+        # Pollutant circle
         color = 'green' if val < 60 else 'red'
-        circle = plt.Circle((0, 0), val * 0.02, color=color, alpha=0.4)
+        circle = plt.Circle(
+            (x, y),
+            val * 10,
+            color=color,
+            alpha=0.3
+        )
         ax.add_patch(circle)
 
-        ax.set_xlim(-10, 10)
-        ax.set_ylim(-10, 10)
+        # Title + annotation
+        ax.set_title(f"{pollutant}\n{ts.strftime('%Y-%m-%d %H:%M')}")
+        ax.text(
+            0.5, -0.1,
+            f"{pollutant}: {val:.1f} | WS: {ws:.1f} m/s",
+            transform=ax.transAxes,
+            ha='center'
+        )
+
         ax.set_axis_off()
 
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
+        plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
         buf.seek(0)
         plt.close(fig)
 
         return buf.getvalue()
 
     # -----------------------------
-    # KMZ LOOP
+    # 🚀 KMZ GENERATION
     # -----------------------------
     for i, req in enumerate(kmz_requests):
 
@@ -78,13 +113,10 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
             (df.index.day <= end_day)
         )
 
-        sub = df.loc[mask].copy()
+        sub = df.loc[mask]
 
         if sub.empty:
             continue
-
-        # 👉 IMPORTANT: sort time (prevents timeline bugs)
-        sub = sub.sort_index()
 
         for pol in pollutants:
 
@@ -95,66 +127,47 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
 
             with zipfile.ZipFile(kmz_buffer, "w", zipfile.ZIP_DEFLATED) as kmz:
 
-                # -----------------------------
-                # KML HEADER (FIXED)
-                # -----------------------------
                 kml = [
                     '<?xml version="1.0" encoding="UTF-8"?>',
                     '<kml xmlns="http://www.opengis.net/kml/2.2">',
                     '<Document>',
-                    f'<name>{pol} Dynamic Rose</name>',
-                    '<open>1</open>'
+                    f'<name>{pol} Dynamic Rose</name>'
                 ]
 
                 north, south = lat + 0.05, lat - 0.05
                 east, west = lon + 0.05, lon - 0.05
 
-                frame_count = 0
-
                 # -----------------------------
-                # FRAME LOOP
+                # 🔁 Frames + SINGLE timeline
                 # -----------------------------
                 for j, (ts, row) in enumerate(sub.iterrows()):
 
-                    frame = generate_frame(row, pol)
+                    frame = generate_frame(row, pol, ts)
                     if frame is None:
                         continue
 
-                    img_name = f"images/frame_{frame_count:05d}.png"
-
+                    img_name = f"images/frame_{j:05d}.png"
                     kmz.writestr(img_name, frame)
 
-                    # ✅ STRICT ISO FORMAT (CRITICAL FIX)
-                    start = ts.strftime("%Y-%m-%dT%H:%M:%SZ")
-                    end = (ts + pd.Timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    timestamp = ts.strftime("%Y-%m-%dT%H:%M:%S")
 
-                    # ✅ CLEAN XML BLOCK (prevents broken timeline)
-                    kml.append(f"""
-                    <GroundOverlay>
-                        <name>{ts}</name>
-                        <TimeSpan>
-                            <begin>{start}</begin>
-                            <end>{end}</end>
-                        </TimeSpan>
-                        <Icon>
-                            <href>{img_name}</href>
-                        </Icon>
-                        <LatLonBox>
-                            <north>{north}</north>
-                            <south>{south}</south>
-                            <east>{east}</east>
-                            <west>{west}</west>
-                        </LatLonBox>
-                    </GroundOverlay>
-                    """)
+                    kml += [
+                        '<GroundOverlay>',
+                        f'<name>{ts}</name>',
+                        f'<TimeStamp><when>{timestamp}</when></TimeStamp>',  # ✅ FIXED
+                        '<Icon>',
+                        f'<href>{img_name}</href>',
+                        '</Icon>',
+                        '<LatLonBox>',
+                        f'<north>{north}</north>',
+                        f'<south>{south}</south>',
+                        f'<east>{east}</east>',
+                        f'<west>{west}</west>',
+                        '</LatLonBox>',
+                        '</GroundOverlay>'
+                    ]
 
-                    frame_count += 1
-
-                # -----------------------------
-                # CLOSE KML
-                # -----------------------------
-                kml.append('</Document>')
-                kml.append('</kml>')
+                kml += ['</Document>', '</kml>']
 
                 kmz.writestr("doc.kml", "\n".join(kml))
 
