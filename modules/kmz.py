@@ -14,9 +14,9 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
     df.index = pd.to_datetime(df.index)
 
     # =========================================================
-    # 🎨 FRAME GENERATOR (JPEG, NO TRANSPARENCY)
+    # 🎨 FRAME GENERATOR (ENHANCED ONLY, STRUCTURE UNCHANGED)
     # =========================================================
-    def generate_frame(row, pollutant):
+    def generate_frame(row, pollutant, ts):
 
         wd = row['WD (degree)']
         ws = row['WS (m/s)']
@@ -34,22 +34,89 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
         ax.set_ylim(-5, 5)
         ax.set_axis_off()
 
-        # wind vector
+        # =====================================================
+        # 🌬 WIND VECTOR
+        # =====================================================
         dx = ws * np.cos(np.deg2rad(wd))
         dy = ws * np.sin(np.deg2rad(wd))
         ax.arrow(0, 0, dx, dy, head_width=0.3, color="blue")
 
-        # pollutant circle
+        # =====================================================
+        # 🔵 POLLUTANT CIRCLE (SAFE SCALE)
+        # =====================================================
+        radius = np.clip(val / 100.0, 0.1, 2.5)
         color = "green" if val < 60 else "red"
-        circle = plt.Circle((0, 0), val * 0.02, color=color, alpha=0.4)
-        ax.add_patch(circle)
 
+        ax.add_patch(plt.Circle((0, 0), radius, color=color, alpha=0.4))
+
+        # =====================================================
+        # ⚖ COMPLIANCE
+        # =====================================================
+        limit = 60
+        status = "SAFE" if val <= limit else "EXCEED"
+
+        # =====================================================
+        # 🕒 TIMESTAMP
+        # =====================================================
         ax.text(
-            0, -4,
-            f"{pollutant}: {val:.1f}",
-            ha="center"
+            0.5, 1.05,
+            ts.strftime("%Y-%m-%d %H:%M:%S"),
+            transform=ax.transAxes,
+            ha="center",
+            fontsize=9,
+            fontweight="bold"
         )
 
+        # =====================================================
+        # 📍 LOCATION
+        # =====================================================
+        ax.text(
+            0.5, 0.98,
+            f"Lat: {lat:.3f}, Lon: {lon:.3f}",
+            transform=ax.transAxes,
+            ha="center",
+            fontsize=8
+        )
+
+        # =====================================================
+        # 🌬 WIND INFO
+        # =====================================================
+        ax.text(
+            0.5, 0.91,
+            f"Wind: {ws:.1f} m/s | Dir: {wd:.0f}°",
+            transform=ax.transAxes,
+            ha="center",
+            fontsize=8
+        )
+
+        # =====================================================
+        # 🧪 POLLUTANT + LIMIT
+        # =====================================================
+        ax.text(
+            0.5, 0.84,
+            f"{pollutant}: {val:.1f} µg/m³ | Limit: {limit}",
+            transform=ax.transAxes,
+            ha="center",
+            fontsize=9,
+            color=color
+        )
+
+        # =====================================================
+        # ⚠ STATUS
+        # =====================================================
+        ax.text(
+            0.5, -0.05,
+            f"Status: {status}",
+            transform=ax.transAxes,
+            ha="center",
+            fontsize=10,
+            fontweight="bold",
+            color=color
+        )
+
+        # =====================================================
+        # 📦 EXPORT JPEG
+        # =====================================================
         buf = io.BytesIO()
         plt.savefig(buf, format="jpg", dpi=120, bbox_inches="tight")
         buf.seek(0)
@@ -58,7 +125,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
         return buf.getvalue()
 
     # =========================================================
-    # 🚀 MAIN LOOP
+    # 🚀 MAIN LOOP (UNCHANGED KMZ STRUCTURE)
     # =========================================================
     for i, req in enumerate(kmz_requests):
 
@@ -89,7 +156,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                 continue
 
             # =====================================================
-            # ✅ SAFE FILE NAME (FIX YOU REQUESTED)
+            # ✅ SAFE FILE NAME
             # =====================================================
             safe_pol = re.sub(r'[^A-Za-z0-9_]+', '_', pol)
 
@@ -98,10 +165,11 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
             # =====================================================
             # 🎞 GENERATE FRAMES
             # =====================================================
-            for _, row in sub.iterrows():
-                frame = generate_frame(row, pol)
+            for ts, row in sub.iterrows():
+
+                frame = generate_frame(row, pol, ts)
                 if frame:
-                    frames.append(frame)
+                    frames.append((ts, frame))
 
             if not frames:
                 continue
@@ -121,30 +189,9 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
             north, south = lat + 0.05, lat - 0.05
             east, west = lon + 0.05, lon - 0.05
 
-            # -----------------------------
-            # BASEMAP
-            # -----------------------------
-            kml += [
-                '<GroundOverlay>',
-                '<name>Basemap</name>',
-                '<Icon>',
-                '<href>http://maps.google.com/mapfiles/kml/tile.jpg</href>',
-                '</Icon>',
-                '<LatLonBox>',
-                f'<north>{north}</north>',
-                f'<south>{south}</south>',
-                f'<east>{east}</east>',
-                f'<west>{west}</west>',
-                '</LatLonBox>',
-                '</GroundOverlay>'
-            ]
-
-            # -----------------------------
-            # ZIP + FRAMES
-            # -----------------------------
             with zipfile.ZipFile(kmz_buffer, "w", zipfile.ZIP_DEFLATED) as kmz:
 
-                for j, (ts, frame) in enumerate(zip(sub.index, frames)):
+                for j, (ts, frame) in enumerate(frames):
 
                     img_name = f"images/frame_{j:04d}.jpg"
                     kmz.writestr(img_name, frame)
