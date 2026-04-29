@@ -171,25 +171,25 @@ if uploaded_file is not None:
         from modules.aqi import run_aqi_analysis
         st.write("starting aqi")
         results.update(run_aqi_analysis(df))
-        progress.progress(20)
+        progress.progress(10)
 
         # SEASON DETECTION
         from modules.season_detection import detect_seasons
         seasons, _ = detect_seasons(df)
         st.session_state.seasons = seasons
-        progress.progress(30)
+        progress.progress(20)
 
         # SEASONAL
         st.write("starting seasonal analysis")
         from modules.seasonal import run_seasonal_analysis
         results.update(run_seasonal_analysis(df, valid_columns, seasons))
-        progress.progress(40)
+        progress.progress(30)
 
         # CORRELATION
         st.write("starting correlation")
         from modules.met_correlation import run_correlation_analysis
         results.update(run_correlation_analysis(df, valid_columns))
-        progress.progress(50)
+        progress.progress(40)
 
         # ROSES
         st.write("starting roses")
@@ -206,7 +206,7 @@ if uploaded_file is not None:
         # KMZ
         if not skip_kmz and kmz_requests:
             from modules.kmz import run_kmz_generation
-            st.write("starting KMZ, GPKG generation, this may take a while")
+            st.write("starting KMZ, this may take a while")
 
             kmz_results = run_kmz_generation(
                 df,
