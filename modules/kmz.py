@@ -4,6 +4,7 @@ import zipfile
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import re
 
 
 def run_kmz_generation(df, kmz_requests, lat, lon):
