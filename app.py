@@ -140,6 +140,23 @@ if uploaded_file is not None:
         })
 
     skip_kmz = st.checkbox("⏭️ Skip KMZ generation")
+    if st.session_state.get("analysis_done") and st.session_state.get("seasons"):
+
+    st.subheader("🌦️ Seasonal Split Used for Analysis")
+
+    seasons = st.session_state.seasons
+
+    month_names = [
+        "Jan","Feb","Mar","Apr","May","Jun",
+        "Jul","Aug","Sep","Oct","Nov","Dec"
+    ]
+
+    for season, months in seasons.items():
+        if months:
+            readable = [month_names[m-1] for m in months]
+            st.write(f"**{season}**: {', '.join(readable)}")
+        else:
+            st.write(f"**{season}**: (No months detected)")
 
     # -----------------------------
     # 🚀 RUN ANALYSIS
@@ -166,6 +183,7 @@ if uploaded_file is not None:
         try:
             from modules.season_detection import detect_seasons
             seasons, _ = detect_seasons(df)
+            st.session_state.seasons = seasons
         except Exception as e:
             st.error(f"❌ Season detection failed: {e}")
             st.stop()
@@ -178,23 +196,8 @@ if uploaded_file is not None:
         st.write("starting seasonal analysis")
         from modules.seasonal import run_seasonal_analysis
         results.update(run_seasonal_analysis(df, valid_columns, seasons))
-        st.subheader("🌦️ Seasonal Split Used for Analysis")
-
-        if seasons:
-            for season, months in seasons.items():
-                if months:
-                    month_names = [
-                        "Jan","Feb","Mar","Apr","May","Jun",
-                        "Jul","Aug","Sep","Oct","Nov","Dec"
-                    ]
-                    readable = [month_names[m-1] for m in months]
         
-                    st.write(f"**{season}**: {', '.join(readable)}")
-                else:
-                    st.write(f"**{season}**: (No months detected)")
-        else:
-            st.warning("⚠️ No seasonal classification available")
-        progress.progress(60)
+       
 
         # -------------------------
         # CORRELATION
@@ -202,6 +205,7 @@ if uploaded_file is not None:
         st.write("Starting correlation")
         from modules.met_correlation import run_correlation_analysis
         results.update(run_correlation_analysis(df, valid_columns))
+        
         progress.progress(75)
 
         # -------------------------
