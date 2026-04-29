@@ -175,6 +175,7 @@ if uploaded_file is not None:
         # -------------------------
         # SEASONAL
         # -------------------------
+        st.write("starting seasonal analysis")
         from modules.seasonal import run_seasonal_analysis
         results.update(run_seasonal_analysis(df, valid_columns, seasons))
         progress.progress(60)
