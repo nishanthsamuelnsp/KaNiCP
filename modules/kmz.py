@@ -172,8 +172,16 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                 kmz.writestr("doc.kml", "\n".join(kml))
 
             kmz_buffer.seek(0)
-
-            fname = f"kmz/request_{i+1}/{pol.replace(' ','_')}.kmz"
+            safe_pol = (
+                pol.replace(" ", "_")
+                   .replace("/", "_")
+                   .replace("(", "")
+                   .replace(")", "")
+                   .replace(".", "")
+            )
+            
+            fname = f"kmz/request_{i+1}/{safe_pol}.kmz"
+           
             results[fname] = kmz_buffer.getvalue()
 
     return results
