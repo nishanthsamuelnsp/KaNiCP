@@ -13,7 +13,7 @@ def run_aqi_analysis(df):
     df = df.sort_index()
 
     # -----------------------------
-    # CPCB breakpoints (only needed ones)
+    # CPCB breakpoints
     # -----------------------------
     breakpoints = {
         'PM2.5 (ug/m3)': [(0,30,0,50),(31,60,51,100),(61,90,101,200),(91,120,201,300),(121,250,301,400),(251,500,401,500)],
@@ -24,24 +24,20 @@ def run_aqi_analysis(df):
         'Ozone (ug/m3)': [(0,50,0,50),(51,100,51,100),(101,168,101,200),(169,208,201,300),(209,748,301,400),(749,1000,401,500)]
     }
 
-    pollutant_cols = [col for col in breakpoints.keys() if col in df.columns]
+    pollutant_cols = list(breakpoints.keys())
 
-    if not pollutant_cols:
-        return results  # nothing to compute
-
-    # -----------------------------
-    # Convert to numeric
-    # -----------------------------
+    # Convert safely
     for col in pollutant_cols:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
 
     # -----------------------------
-    # AQI calculation
+    # AQI functions
     # -----------------------------
     def compute_subindex(conc, pollutant):
         if pd.isna(conc):
             return np.nan
-        for Clow, Chigh, Ilow, Ihigh in breakpoints[pollutant]:
+        for Clow, Chigh, Ilow, Ihigh in breakpoints.get(pollutant, []):
             if Clow <= conc <= Chigh:
                 return ((Ihigh-Ilow)/(Chigh-Clow))*(conc-Clow)+Ilow
         return np.nan
@@ -49,23 +45,36 @@ def run_aqi_analysis(df):
     def compute_aqi(row):
         vals = []
         for pol in pollutant_cols:
-            val = compute_subindex(row[pol], pol)
-            if not np.isnan(val):
-                vals.append(val)
+            if pol in row:
+                val = compute_subindex(row[pol], pol)
+                if not np.isnan(val):
+                    vals.append(val)
         return max(vals) if vals else np.nan
 
+    # -----------------------------
+    # AQI calculation
+    # -----------------------------
     df['AQI'] = df.apply(compute_aqi, axis=1)
 
-    # -----------------------------
-    # Daily AQI
-    # -----------------------------
-    daily_aqi = df['AQI'].resample('D').mean()
+    daily_means = df.resample('D').mean(numeric_only=True)
+
+    if 'AQI' not in daily_means.columns:
+        return results
+
+    daily_aqi = daily_means['AQI']
 
     if daily_aqi.dropna().empty:
         return results
 
     # -----------------------------
-    # Heatmap data
+    # Save Excel
+    # -----------------------------
+    excel_buffer = io.BytesIO()
+    daily_aqi.to_frame().to_excel(excel_buffer)
+    results["aqi/daily_aqi.xlsx"] = excel_buffer.getvalue()
+
+    # -----------------------------
+    # Heatmap
     # -----------------------------
     heatmap_data = daily_aqi.groupby([
         daily_aqi.index.month,
@@ -78,9 +87,6 @@ def run_aqi_analysis(df):
     if heatmap_data.dropna(how='all').empty:
         return results
 
-    # -----------------------------
-    # Plot heatmap
-    # -----------------------------
     fig, ax = plt.subplots(figsize=(8,12))
 
     sns.heatmap(
@@ -89,22 +95,31 @@ def run_aqi_analysis(df):
         linewidths=0.5,
         linecolor='white',
         cbar_kws={'label':'AQI'},
+        square=True,
         ax=ax
     )
 
     ax.set_title("Daily AQI Heatmap")
-    ax.set_xlabel("Month")
-    ax.set_ylabel("Day")
 
-    # -----------------------------
-    # Save image to memory
-    # -----------------------------
     img_buffer = io.BytesIO()
     fig.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
     img_buffer.seek(0)
 
-    results["aqi_heatmap.png"] = img_buffer.getvalue()
+    results["aqi/aqi_heatmap.png"] = img_buffer.getvalue()
 
     plt.close(fig)
+
+    # -----------------------------
+    # Compliance (safe minimal)
+    # -----------------------------
+    try:
+        annual_means = df.resample('Y').mean(numeric_only=True)
+
+        comp_buffer = io.BytesIO()
+        annual_means.to_excel(comp_buffer)
+
+        results["aqi/compliance.xlsx"] = comp_buffer.getvalue()
+    except:
+        pass
 
     return results
