@@ -86,7 +86,7 @@ def run_roses_analysis(df, valid_columns):
             normed=True,
             opening=0.8,
             edgecolor='black',
-            cmap=cm.Greys
+            cmap=cm.viridis
         )
 
         ax.set_legend(title=full_name)
