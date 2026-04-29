@@ -169,12 +169,12 @@ if uploaded_file is not None:
         progress = st.progress(0)
 
         valid_columns = st.session_state.get("valid_columns", [])
-
+         # -------------------------
+        # AQI
         # -------------------------
-        # DIURNAL (UNCHANGED)
-        # -------------------------
-        from modules.diurnal import run_diurnal_analysis
-        results.update(run_diurnal_analysis(df, valid_columns))
+        from modules.aqi import run_aqi_analysis
+        st.write("starting aqi")
+        results.update(run_aqi_analysis(df))
         progress.progress(25)
 
         # -------------------------
@@ -215,13 +215,13 @@ if uploaded_file is not None:
         from modules.roses import run_roses_analysis
         results.update(run_roses_analysis(df, valid_columns))
         progress.progress(85)
-
         # -------------------------
-        # AQI
+        # DIURNAL (UNCHANGED)
         # -------------------------
-        from modules.aqi import run_aqi_analysis
-        st.write("starting aqi")
-        results.update(run_aqi_analysis(df))
+        from modules.diurnal import run_diurnal_analysis
+        results.update(run_diurnal_analysis(df, valid_columns))
+        
+       
         progress.progress(95)
 
         # -------------------------
