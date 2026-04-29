@@ -125,7 +125,8 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
 
                 kml = [
                     '<?xml version="1.0" encoding="UTF-8"?>',
-                    '<kml xmlns="http://www.opengis.net/kml/2.2">',
+                    <kml xmlns="http://www.opengis.net/kml/2.2"
+                         xmlns:gx="http://www.google.com/kml/ext/2.2">,
                     '<Document>',
                     f'<name>{pol} Dynamic Rose</name>'
                 ]
@@ -142,15 +143,12 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                     img_name = f"images/frame_{j:05d}.png"
                     kmz.writestr(img_name, frame)
 
-                    timestamp = ts.strftime("%Y-%m-%dT%H:%M:%S")
-
-                    start = ts.strftime("%Y-%m-%dT%H:%M:%S")
-                    end = (ts + pd.Timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S")
+                    timestamp = (ts + pd.Timedelta(seconds=j)).strftime("%Y-%m-%dT%H:%M:%S")
                     
                     kml += [
                         '<GroundOverlay>',
                         f'<name>{ts}</name>',
-                        f'<TimeStamp><when>{start}</when></TimeStamp>',
+                        f'<gx:TimeStamp><when>{start}</when></gx:TimeStamp>',
                         '<Icon>',
                         f'<href>{img_name}</href>',
                         '</Icon>',
