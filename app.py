@@ -178,6 +178,22 @@ if uploaded_file is not None:
         st.write("starting seasonal analysis")
         from modules.seasonal import run_seasonal_analysis
         results.update(run_seasonal_analysis(df, valid_columns, seasons))
+        st.subheader("🌦️ Seasonal Split Used for Analysis")
+
+        if seasons:
+            for season, months in seasons.items():
+                if months:
+                    month_names = [
+                        "Jan","Feb","Mar","Apr","May","Jun",
+                        "Jul","Aug","Sep","Oct","Nov","Dec"
+                    ]
+                    readable = [month_names[m-1] for m in months]
+        
+                    st.write(f"**{season}**: {', '.join(readable)}")
+                else:
+                    st.write(f"**{season}**: (No months detected)")
+        else:
+            st.warning("⚠️ No seasonal classification available")
         progress.progress(60)
 
         # -------------------------
@@ -235,10 +251,7 @@ if st.session_state.analysis_done:
 
     if not results:
         st.warning("⚠️ No results generated")
-    else:
-        for name, file in results.items():
-            if name.endswith(".png"):
-                st.image(file, caption=name)
+    
 
     from modules.utils import create_zip
 
