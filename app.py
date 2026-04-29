@@ -192,8 +192,8 @@ if uploaded_file is not None:
         # ROSES
         # -------------------------
         st.write("starting roses")
-        from modules.roses import run_roses_analysis
-        results.update(run_roses_analysis(df, valid_columns))
+        #from modules.roses import run_roses_analysis
+        #results.update(run_roses_analysis(df, valid_columns))
         progress.progress(85)
 
         # -------------------------
