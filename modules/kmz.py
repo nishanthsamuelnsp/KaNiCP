@@ -148,7 +148,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                     kml += [
                         '<GroundOverlay>',
                         f'<name>{ts}</name>',
-                        f'<gx:TimeStamp><when>{start}</when></gx:TimeStamp>',
+                        f'<gx:TimeStamp><when>{timestamp}</when></gx:TimeStamp>',
                         '<Icon>',
                         f'<href>{img_name}</href>',
                         '</Icon>',
