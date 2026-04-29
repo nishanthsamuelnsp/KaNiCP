@@ -19,7 +19,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
     # -----------------------------
     # 🎨 Frame generator (TRANSPARENT)
     # -----------------------------
-    def generate_frame(row, pollutant, ts):
+    def generate_frame(row, pollutant):
 
         wd = row['WD (degree)']
         ws = row['WS (m/s)']
@@ -28,13 +28,12 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
         if pd.isna(wd) or pd.isna(ws) or pd.isna(val):
             return None
 
-        fig, ax = plt.subplots(figsize=(4,4))
+        fig, ax = plt.subplots(figsize=(4, 4))
 
         # Transparent background
         fig.patch.set_alpha(0)
         ax.set_facecolor("none")
 
-        # Center
         cx, cy = 0, 0
 
         # Wind vector
@@ -47,15 +46,14 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
             head_length=0.4,
             fc='blue',
             ec='blue',
-            linewidth=1 + ws/2
+            linewidth=1 + ws / 2
         )
 
         # Pollutant circle
         color = 'green' if val < 60 else 'red'
-        circle = plt.Circle((cx, cy), val * 0.02, color=color, alpha=0.3)
+        circle = plt.Circle((cx, cy), val * 0.02, color=color, alpha=0.4)
         ax.add_patch(circle)
 
-        # Text overlay
         ax.text(
             0.5, -0.15,
             f"{pollutant}\n{val:.1f} µg/m³ | WS: {ws:.1f} m/s",
@@ -66,7 +64,6 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
             bbox=dict(facecolor='white', alpha=0.6, edgecolor='none')
         )
 
-        # Limits
         ax.set_xlim(-5, 5)
         ax.set_ylim(-5, 5)
         ax.set_axis_off()
@@ -77,7 +74,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
             format='png',
             dpi=80,
             bbox_inches='tight',
-            transparent=True   # 🔥 KEY
+            transparent=True
         )
         buf.seek(0)
         plt.close(fig)
@@ -107,7 +104,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
         if sub.empty:
             continue
 
-        # 🔥 Frame reduction safeguard
+        # frame reduction
         if len(sub) > 300:
             sub = sub.iloc[::3]
 
@@ -116,7 +113,6 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
             if pol not in sub.columns:
                 continue
 
-            # Safe filename
             safe_pol = re.sub(r'[^A-Za-z0-9_]+', '_', pol)
 
             kmz_buffer = io.BytesIO()
@@ -136,20 +132,28 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
 
                 for j, (ts, row) in enumerate(sub.iterrows()):
 
-                    frame = generate_frame(row, pol, ts)
+                    frame = generate_frame(row, pol)
                     if frame is None:
                         continue
 
                     img_name = f"images/frame_{j:05d}.png"
                     kmz.writestr(img_name, frame)
 
-                    timestamp = (ts + pd.Timedelta(seconds=j)).strftime("%Y-%m-%dT%H:%M:%S")
-                    
+                    # -----------------------------
+                    # ✅ FIXED TIME LOGIC (CRITICAL)
+                    # -----------------------------
+                    start_time = ts
+                    end_time = ts + pd.Timedelta(seconds=1)
+
                     kml += [
                         '<Folder>',
                         f'<name>{ts}</name>',
-                        f'<gx:TimeStamp><when>{timestamp}</when></gx:TimeStamp>',
-                    
+
+                        '<gx:TimeSpan>',
+                        f'<begin>{start_time.strftime("%Y-%m-%dT%H:%M:%S")}</begin>',
+                        f'<end>{end_time.strftime("%Y-%m-%dT%H:%M:%S")}</end>',
+                        '</gx:TimeSpan>',
+
                         '<GroundOverlay>',
                         '<Icon>',
                         f'<href>{img_name}</href>',
@@ -161,7 +165,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                         f'<west>{west}</west>',
                         '</LatLonBox>',
                         '</GroundOverlay>',
-                    
+
                         '</Folder>'
                     ]
 
