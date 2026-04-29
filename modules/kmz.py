@@ -146,9 +146,11 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                     timestamp = (ts + pd.Timedelta(seconds=j)).strftime("%Y-%m-%dT%H:%M:%S")
                     
                     kml += [
-                        '<GroundOverlay>',
+                        '<Folder>',
                         f'<name>{ts}</name>',
                         f'<gx:TimeStamp><when>{timestamp}</when></gx:TimeStamp>',
+                    
+                        '<GroundOverlay>',
                         '<Icon>',
                         f'<href>{img_name}</href>',
                         '</Icon>',
@@ -158,7 +160,9 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                         f'<east>{east}</east>',
                         f'<west>{west}</west>',
                         '</LatLonBox>',
-                        '</GroundOverlay>'
+                        '</GroundOverlay>',
+                    
+                        '</Folder>'
                     ]
 
                 kml += ['</Document>', '</kml>']
