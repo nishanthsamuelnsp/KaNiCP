@@ -5,6 +5,10 @@ import matplotlib.cm as cm
 
 def run_roses_analysis(df, valid_columns):
 
+    results = {}
+
+    df = df.copy()
+
     pollutant_map = {
         'PM2.5 (ug/m3)': 'PM2.5',
         'PM10 (ug/m3)': 'PM10',
@@ -21,59 +25,64 @@ def run_roses_analysis(df, valid_columns):
         'O-Xylene (ug/m3)': 'O-Xylene'
     }
 
-    results = {}
-
     # ------------------------
-    # 🌬️ Wind Rose (no strict validation, just check presence)
+    # 🌬️ Wind Rose
     # ------------------------
     if 'WD (degree)' in df.columns and 'WS (m/s)' in df.columns:
 
-        fig = plt.figure(figsize=(6,6))
-        ax = WindroseAxes(fig, [0.1,0.1,0.8,0.8])
-        fig.add_axes(ax)
+        wind_df = df[['WD (degree)', 'WS (m/s)']].dropna()
 
-        # ✅ colored version
-        ax.bar(
-            df['WD (degree)'],
-            df['WS (m/s)'],
-            normed=True,
-            opening=0.8,
-            edgecolor='white',
-            cmap=cm.viridis
-        )
+        if not wind_df.empty:
 
-        ax.set_legend(title="Wind Speed (m/s)")
-        plt.title("Wind Rose")
+            fig = plt.figure(figsize=(6,6))
+            ax = WindroseAxes(fig, [0.1,0.1,0.8,0.8])
+            fig.add_axes(ax)
 
-        img_buffer = io.BytesIO()
-        fig.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
-        img_buffer.seek(0)
+            ax.bar(
+                wind_df['WD (degree)'],
+                wind_df['WS (m/s)'],
+                normed=True,
+                opening=0.8,
+                edgecolor='white',
+                cmap=cm.viridis
+            )
 
-        results["roses/wind_rose.png"] = img_buffer.getvalue()
+            ax.set_legend(title="Wind Speed (m/s)")
+            plt.title("Wind Rose")
 
-        plt.close(fig)
+            img_buffer = io.BytesIO()
+            fig.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+            img_buffer.seek(0)
+
+            results["roses/wind_rose.png"] = img_buffer.getvalue()
+
+            plt.close(fig)
 
     # ------------------------
     # 🌫️ Pollution Roses
     # ------------------------
-    selected_items = {
-        k: v for k, v in pollutant_map.items() if k in valid_columns
-    }
+    selected = {k: v for k, v in pollutant_map.items() if k in valid_columns}
 
-    for full_name, short_name in selected_items.items():
+    for full_name, short_name in selected.items():
 
-        # Need WD for direction
+        if full_name not in df.columns:
+            continue
+
         if 'WD (degree)' not in df.columns:
+            continue
+
+        rose_df = df[['WD (degree)', full_name]].dropna()
+
+        if rose_df.empty:
             continue
 
         fig = plt.figure(figsize=(6,6))
         ax = WindroseAxes(fig, [0.1,0.1,0.8,0.8])
         fig.add_axes(ax)
 
-        # grayscale (as you wanted)
         ax.bar(
-            df['WD (degree)'],
-            df[full_name],
+            rose_df['WD (degree)'],
+            rose_df[full_name],
             normed=True,
             opening=0.8,
             edgecolor='black',
@@ -87,8 +96,7 @@ def run_roses_analysis(df, valid_columns):
         fig.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
         img_buffer.seek(0)
 
-        filename = f"roses/pollution_rose_{short_name}.png"
-        results[filename] = img_buffer.getvalue()
+        results[f"roses/pollution_rose_{short_name}.png"] = img_buffer.getvalue()
 
         plt.close(fig)
 
