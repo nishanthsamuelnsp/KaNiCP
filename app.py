@@ -20,8 +20,8 @@ if "run_analysis" not in st.session_state:
 # -----------------------------
 # PAGE CONFIG
 # -----------------------------
-st.set_page_config(page_title="Pollizer", layout="wide")
-st.title("🌍 KaNiCP - Pollizer")
+st.set_page_config(page_title="KaNi", layout="wide")
+st.title("🌍 KaNiCP - Air Pollution Analysis Tool")
 
 # -----------------------------
 # INSTRUCTIONS
