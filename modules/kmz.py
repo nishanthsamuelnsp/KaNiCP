@@ -150,10 +150,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                     kml += [
                         '<GroundOverlay>',
                         f'<name>{ts}</name>',
-                        '<TimeSpan>',
-                        f'<begin>{start}</begin>',
-                        f'<end>{end}</end>',
-                        '</TimeSpan>',
+                        f'<TimeStamp><when>{start}</when></TimeStamp>',
                         '<Icon>',
                         f'<href>{img_name}</href>',
                         '</Icon>',
