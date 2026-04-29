@@ -1,9 +1,9 @@
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+import os
 import io
 import zipfile
-import re
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 
 
 def run_kmz_generation(df, kmz_requests, lat, lon):
@@ -13,6 +13,9 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
     df = df.copy()
     df.index = pd.to_datetime(df.index)
 
+    # =========================================================
+    # 🎨 FRAME GENERATOR (JPEG - NO TRANSPARENCY)
+    # =========================================================
     def generate_frame(row, pollutant):
 
         wd = row['WD (degree)']
@@ -22,33 +25,42 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
         if pd.isna(wd) or pd.isna(ws) or pd.isna(val):
             return None
 
-        fig, ax = plt.subplots(figsize=(4, 4))
+        fig, ax = plt.subplots(figsize=(5, 5))
 
-        fig.patch.set_alpha(0)
-        ax.set_facecolor("none")
-
-        cx, cy = 0, 0
-
-        dx = ws * np.cos(np.deg2rad(wd))
-        dy = ws * np.sin(np.deg2rad(wd))
-
-        ax.arrow(cx, cy, dx, dy, head_width=0.3,
-                 head_length=0.4, fc='blue', ec='blue')
-
-        color = 'green' if val < 60 else 'red'
-        ax.add_patch(plt.Circle((cx, cy), val * 0.02, color=color, alpha=0.4))
+        # IMPORTANT: opaque background (NO transparency)
+        ax.set_facecolor("white")
+        fig.patch.set_facecolor("white")
 
         ax.set_xlim(-5, 5)
         ax.set_ylim(-5, 5)
         ax.set_axis_off()
 
+        # wind vector
+        dx = ws * np.cos(np.deg2rad(wd))
+        dy = ws * np.sin(np.deg2rad(wd))
+        ax.arrow(0, 0, dx, dy, head_width=0.3, color="blue")
+
+        # pollutant circle
+        color = "green" if val < 60 else "red"
+        circle = plt.Circle((0, 0), val * 0.02, color=color, alpha=0.4)
+        ax.add_patch(circle)
+
+        ax.text(
+            0, -4,
+            f"{pollutant}: {val:.1f}",
+            ha="center"
+        )
+
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=90, transparent=True, bbox_inches='tight')
+        plt.savefig(buf, format="jpg", dpi=120, bbox_inches="tight")
         buf.seek(0)
         plt.close(fig)
 
         return buf.getvalue()
 
+    # =========================================================
+    # 🚀 KMZ GENERATION
+    # =========================================================
     for i, req in enumerate(kmz_requests):
 
         year = req["year"]
@@ -78,100 +90,69 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                 continue
 
             safe_pol = re.sub(r'[^A-Za-z0-9_]+', '_', pol)
-
             kmz_buffer = io.BytesIO()
 
-            with zipfile.ZipFile(kmz_buffer, "w", zipfile.ZIP_DEFLATED) as kmz:
+            kml = [
+                '<?xml version="1.0" encoding="UTF-8"?>',
+                '<kml xmlns="http://www.opengis.net/kml/2.2">',
+                '<Document>',
+                f'<name>{pol} Timelapse</name>'
+            ]
 
-                kml = [
-                    '<?xml version="1.0" encoding="UTF-8"?>',
-                    '<kml xmlns="http://www.opengis.net/kml/2.2" '
-                    'xmlns:gx="http://www.google.com/kml/ext/2.2">',
-                    '<Document>',
-                    f'<name>{pol} Animation</name>'
-                ]
+            north, south = lat + 0.05, lat - 0.05
+            east, west = lon + 0.05, lon - 0.05
 
-                north, south = lat + 0.01, lat - 0.01
-                east, west = lon + 0.01, lon - 0.01
+            # =====================================================
+            # 🖼 BASEMAP OVERLAY (STATIC)
+            # =====================================================
+            kml += [
+                '<GroundOverlay>',
+                '<name>Basemap</name>',
+                '<Icon>',
+                '<href>http://maps.google.com/mapfiles/kml/tile.jpg</href>',
+                '</Icon>',
+                '<LatLonBox>',
+                f'<north>{north}</north>',
+                f'<south>{south}</south>',
+                f'<east>{east}</east>',
+                f'<west>{west}</west>',
+                '</LatLonBox>',
+                '</GroundOverlay>'
+            ]
 
-                frame_ids = []
+            # =====================================================
+            # 🖼 FRAME OVERLAYS (JPEG SWAPS)
+            # =====================================================
+            for j, (ts, row) in enumerate(sub.iterrows()):
 
-                # -----------------------
-                # CREATE ALL FRAMES (hidden)
-                # -----------------------
-                for j, (ts, row) in enumerate(sub.iterrows()):
+                frame = generate_frame(row, pol)
+                if frame is None:
+                    continue
 
-                    frame = generate_frame(row, pol)
-                    if frame is None:
-                        continue
+                img_name = f"images/frame_{j:04d}.jpg"
+                kmz_buffer.writestr(img_name, frame)
 
-                    img_name = f"images/frame_{j:05d}.png"
-                    kmz.writestr(img_name, frame)
-
-                    frame_id = f"frame_{j}"
-                    frame_ids.append(frame_id)
-
-                    kml += [
-                        f'<GroundOverlay id="{frame_id}">',
-                        '<visibility>0</visibility>',
-                        '<Icon>',
-                        f'<href>{img_name}</href>',
-                        '</Icon>',
-                        '<LatLonBox>',
-                        f'<north>{north}</north>',
-                        f'<south>{south}</south>',
-                        f'<east>{east}</east>',
-                        f'<west>{west}</west>',
-                        '</LatLonBox>',
-                        '</GroundOverlay>',
-                    ]
-
-                # -----------------------
-                # TOUR (VISIBILITY SWITCH)
-                # -----------------------
-                kml += [
-                    '<gx:Tour>',
-                    '<name>play</name>',
-                    '<gx:Playlist>'
-                ]
-
-                for j in range(len(frame_ids)):
-
-                    kml += [
-                        '<gx:AnimatedUpdate>',
-                        '<gx:duration>0.2</gx:duration>',
-                        '<Update>'
-                    ]
-
-                    # turn ALL off
-                    for fid in frame_ids:
-                        kml += [
-                            '<Change>',
-                            f'<GroundOverlay targetId="{fid}">',
-                            '<visibility>0</visibility>',
-                            '</GroundOverlay>',
-                            '</Change>'
-                        ]
-
-                    # turn current ON
-                    kml += [
-                        '<Change>',
-                        f'<GroundOverlay targetId="{frame_ids[j]}">',
-                        '<visibility>1</visibility>',
-                        '</GroundOverlay>',
-                        '</Change>',
-                        '</Update>',
-                        '</gx:AnimatedUpdate>'
-                    ]
+                timestamp = ts.strftime("%Y-%m-%dT%H:%M:%S")
 
                 kml += [
-                    '</gx:Playlist>',
-                    '</gx:Tour>',
-                    '</Document>',
-                    '</kml>'
+                    '<GroundOverlay>',
+                    f'<name>{timestamp}</name>',
+                    f'<TimeStamp><when>{timestamp}</when></TimeStamp>',
+                    '<Icon>',
+                    f'<href>{img_name}</href>',
+                    '</Icon>',
+                    '<LatLonBox>',
+                    f'<north>{north}</north>',
+                    f'<south>{south}</south>',
+                    f'<east>{east}</east>',
+                    f'<west>{west}</west>',
+                    '</LatLonBox>',
+                    '</GroundOverlay>'
                 ]
 
-                kmz.writestr("doc.kml", "\n".join(kml))
+            kml += ['</Document>', '</kml>']
+
+            kmz_buffer.writestr("doc.kml", "\n".join(kml))
 
             kmz_buffer.seek(0)
 
