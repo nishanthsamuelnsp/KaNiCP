@@ -14,7 +14,13 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
     df.index = pd.to_datetime(df.index)
 
     # =========================================================
-    # 🎨 FRAME GENERATOR (ENHANCED ONLY, STRUCTURE UNCHANGED)
+    # 📍 LOCATION LABEL (fallback, no external API)
+    # =========================================================
+    def get_location_name(lat, lon):
+        return f"Station ({lat:.2f}, {lon:.2f})"
+
+    # =========================================================
+    # 🎨 FRAME GENERATOR (ENHANCED INFO PANEL)
     # =========================================================
     def generate_frame(row, pollutant, ts):
 
@@ -46,7 +52,6 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
         # =====================================================
         radius = np.clip(val / 100.0, 0.1, 2.5)
         color = "green" if val < 60 else "red"
-
         ax.add_patch(plt.Circle((0, 0), radius, color=color, alpha=0.4))
 
         # =====================================================
@@ -56,62 +61,36 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
         status = "SAFE" if val <= limit else "EXCEED"
 
         # =====================================================
-        # 🕒 TIMESTAMP
+        # 📍 LOCATION NAME
         # =====================================================
-        ax.text(
-            0.5, 1.05,
-            ts.strftime("%Y-%m-%d %H:%M:%S"),
-            transform=ax.transAxes,
-            ha="center",
-            fontsize=9,
-            fontweight="bold"
-        )
+        location_name = get_location_name(lat, lon)
 
         # =====================================================
-        # 📍 LOCATION
+        # 🧾 FULL INFO PANEL (KEY UPGRADE)
         # =====================================================
-        ax.text(
-            0.5, 0.98,
-            f"Lat: {lat:.3f}, Lon: {lon:.3f}",
-            transform=ax.transAxes,
-            ha="center",
-            fontsize=8
+        info_text = (
+            f"🕒 Time: {ts.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f"📍 Location: {location_name}\n"
+            f"🌍 Coordinates: {lat:.3f}, {lon:.3f}\n"
+            f"🌬 Wind Speed: {ws:.1f} m/s | Dir: {wd:.0f}°\n"
+            f"🧪 {pollutant}: {val:.1f} µg/m³\n"
+            f"⚖ Limit: {limit} µg/m³\n"
+            f"🚦 Status: {status}"
         )
 
-        # =====================================================
-        # 🌬 WIND INFO
-        # =====================================================
         ax.text(
-            0.5, 0.91,
-            f"Wind: {ws:.1f} m/s | Dir: {wd:.0f}°",
+            0.02, 0.98,
+            info_text,
             transform=ax.transAxes,
-            ha="center",
-            fontsize=8
-        )
-
-        # =====================================================
-        # 🧪 POLLUTANT + LIMIT
-        # =====================================================
-        ax.text(
-            0.5, 0.84,
-            f"{pollutant}: {val:.1f} µg/m³ | Limit: {limit}",
-            transform=ax.transAxes,
-            ha="center",
-            fontsize=9,
-            color=color
-        )
-
-        # =====================================================
-        # ⚠ STATUS
-        # =====================================================
-        ax.text(
-            0.5, -0.05,
-            f"Status: {status}",
-            transform=ax.transAxes,
-            ha="center",
-            fontsize=10,
-            fontweight="bold",
-            color=color
+            va="top",
+            ha="left",
+            fontsize=8.5,
+            bbox=dict(
+                facecolor="white",
+                alpha=0.85,
+                edgecolor="black",
+                boxstyle="round,pad=0.4"
+            )
         )
 
         # =====================================================
@@ -125,7 +104,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
         return buf.getvalue()
 
     # =========================================================
-    # 🚀 MAIN LOOP (UNCHANGED KMZ STRUCTURE)
+    # 🚀 MAIN KMZ LOOP (UNCHANGED STRUCTURE)
     # =========================================================
     for i, req in enumerate(kmz_requests):
 
@@ -155,9 +134,6 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
             if pol not in sub.columns:
                 continue
 
-            # =====================================================
-            # ✅ SAFE FILE NAME
-            # =====================================================
             safe_pol = re.sub(r'[^A-Za-z0-9_]+', '_', pol)
 
             frames = []
@@ -175,7 +151,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
                 continue
 
             # =====================================================
-            # 🌍 BUILD KMZ
+            # 🌍 KMZ BUILD
             # =====================================================
             kmz_buffer = io.BytesIO()
 
