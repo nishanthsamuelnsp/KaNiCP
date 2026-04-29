@@ -108,7 +108,7 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
             if pol not in sub.columns:
                 continue
 
-            safe_pol = pol.replace(" ", "_")
+            safe_pol = re.sub(r'[^A-Za-z0-9_]+', '_', pol)
 
             frames = []
 
