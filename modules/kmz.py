@@ -144,10 +144,16 @@ def run_kmz_generation(df, kmz_requests, lat, lon):
 
                     timestamp = ts.strftime("%Y-%m-%dT%H:%M:%S")
 
+                    start = ts.strftime("%Y-%m-%dT%H:%M:%S")
+                    end = (ts + pd.Timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S")
+                    
                     kml += [
                         '<GroundOverlay>',
                         f'<name>{ts}</name>',
-                        f'<TimeStamp><when>{timestamp}</when></TimeStamp>',
+                        '<TimeSpan>',
+                        f'<begin>{start}</begin>',
+                        f'<end>{end}</end>',
+                        '</TimeSpan>',
                         '<Icon>',
                         f'<href>{img_name}</href>',
                         '</Icon>',
