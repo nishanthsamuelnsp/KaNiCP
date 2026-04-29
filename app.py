@@ -116,7 +116,7 @@ if uploaded_file is not None:
     ]
 
     kmz_requests = []
-
+    st.write("Large duration and multiple pollutant would stress the app leading to crash. 💀⚠️")
     for i in range(3):
         st.subheader(f"Request {i+1}")
 
