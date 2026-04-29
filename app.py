@@ -184,8 +184,8 @@ if uploaded_file is not None:
         # CORRELATION
         # -------------------------
         st.write("Starting correlation")
-        from modules.met_correlation import run_correlation_analysis
-        results.update(run_correlation_analysis(df, valid_columns))
+        #from modules.met_correlation import run_correlation_analysis
+       # results.update(run_correlation_analysis(df, valid_columns))
         progress.progress(75)
 
         # -------------------------
