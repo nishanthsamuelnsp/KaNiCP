@@ -182,6 +182,7 @@ if uploaded_file is not None:
         # -------------------------
         # CORRELATION
         # -------------------------
+        st.write("Starting correlation")
         from modules.met_correlation import run_correlation_analysis
         results.update(run_correlation_analysis(df, valid_columns))
         progress.progress(75)
@@ -189,6 +190,7 @@ if uploaded_file is not None:
         # -------------------------
         # ROSES
         # -------------------------
+        st.write("starting roses")
         from modules.roses import run_roses_analysis
         results.update(run_roses_analysis(df, valid_columns))
         progress.progress(85)
@@ -197,6 +199,7 @@ if uploaded_file is not None:
         # AQI
         # -------------------------
         from modules.aqi import run_aqi_analysis
+        st.write("starting aqi")
         results.update(run_aqi_analysis(df))
         progress.progress(95)
 
