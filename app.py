@@ -221,7 +221,7 @@ if uploaded_file is not None:
         # -------------------------
         from modules.aqi import run_aqi_analysis
         st.write("starting aqi")
-        #results.update(run_aqi_analysis(df))
+        results.update(run_aqi_analysis(df))
         progress.progress(95)
 
         # -------------------------
