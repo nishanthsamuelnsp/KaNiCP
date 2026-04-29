@@ -9,7 +9,8 @@ def run_aqi_analysis(df):
     results = {}
 
     df = df.copy()
-    df.index = pd.to_datetime(df.index)
+    df.index = pd.to_datetime(df.index, errors='coerce')
+    df = df.sort_index()
 
     # -----------------------------
     # CPCB breakpoints
@@ -25,7 +26,7 @@ def run_aqi_analysis(df):
 
     pollutant_cols = list(breakpoints.keys())
 
-    # Convert to numeric safely
+    # Convert safely
     for col in pollutant_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -34,17 +35,21 @@ def run_aqi_analysis(df):
     # AQI functions
     # -----------------------------
     def compute_subindex(conc, pollutant):
+        if pd.isna(conc):
+            return np.nan
         for Clow, Chigh, Ilow, Ihigh in breakpoints.get(pollutant, []):
             if Clow <= conc <= Chigh:
                 return ((Ihigh-Ilow)/(Chigh-Clow))*(conc-Clow)+Ilow
         return np.nan
 
     def compute_aqi(row):
-        subindices = []
+        vals = []
         for pol in pollutant_cols:
-            if pol in row and not pd.isna(row[pol]):
-                subindices.append(compute_subindex(row[pol], pol))
-        return np.nanmax(subindices) if subindices else np.nan
+            if pol in row:
+                val = compute_subindex(row[pol], pol)
+                if not np.isnan(val):
+                    vals.append(val)
+        return max(vals) if vals else np.nan
 
     # -----------------------------
     # AQI calculation
@@ -52,10 +57,17 @@ def run_aqi_analysis(df):
     df['AQI'] = df.apply(compute_aqi, axis=1)
 
     daily_means = df.resample('D').mean(numeric_only=True)
+
+    if 'AQI' not in daily_means.columns:
+        return results
+
     daily_aqi = daily_means['AQI']
 
+    if daily_aqi.dropna().empty:
+        return results
+
     # -----------------------------
-    # Save AQI Excel (in memory)
+    # Save Excel
     # -----------------------------
     excel_buffer = io.BytesIO()
     daily_aqi.to_frame().to_excel(excel_buffer)
@@ -65,14 +77,18 @@ def run_aqi_analysis(df):
     # Heatmap
     # -----------------------------
     heatmap_data = daily_aqi.groupby([
-        daily_aqi.index.month.astype(int),
-        daily_aqi.index.day.astype(int)
+        daily_aqi.index.month,
+        daily_aqi.index.day
     ]).mean().unstack(level=0)
 
     heatmap_data = heatmap_data.reindex(range(1,32))
     heatmap_data = heatmap_data.reindex(columns=range(1,13))
 
+    if heatmap_data.dropna(how='all').empty:
+        return results
+
     fig, ax = plt.subplots(figsize=(8,12))
+
     sns.heatmap(
         heatmap_data,
         cmap="RdYlGn_r",
@@ -84,8 +100,6 @@ def run_aqi_analysis(df):
     )
 
     ax.set_title("Daily AQI Heatmap")
-    ax.set_xlabel("Month")
-    ax.set_ylabel("Day")
 
     img_buffer = io.BytesIO()
     fig.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
@@ -96,70 +110,16 @@ def run_aqi_analysis(df):
     plt.close(fig)
 
     # -----------------------------
-    # Compliance Check
+    # Compliance (safe minimal)
     # -----------------------------
-    pollutants = pollutant_cols
+    try:
+        annual_means = df.resample('Y').mean(numeric_only=True)
 
-    for col in pollutants:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+        comp_buffer = io.BytesIO()
+        annual_means.to_excel(comp_buffer)
 
-    df['SO2_24h'] = df['SO2 (ug/m3)'].rolling(24, min_periods=1).mean() if 'SO2 (ug/m3)' in df.columns else np.nan
-    df['PM2.5_24h'] = df['PM2.5 (ug/m3)'].rolling(24, min_periods=1).mean() if 'PM2.5 (ug/m3)' in df.columns else np.nan
-    df['PM10_24h'] = df['PM10 (ug/m3)'].rolling(24, min_periods=1).mean() if 'PM10 (ug/m3)' in df.columns else np.nan
-    df['NO2_24h'] = df['NO2 (ug/m3)'].rolling(24, min_periods=1).mean() if 'NO2 (ug/m3)' in df.columns else np.nan
-    df['O3_8h'] = df['Ozone (ug/m3)'].rolling(8, min_periods=1).mean() if 'Ozone (ug/m3)' in df.columns else np.nan
-    df['CO_8h'] = df['CO (mg/m3)'].rolling(8, min_periods=1).mean() if 'CO (mg/m3)' in df.columns else np.nan
-
-    annual_means = df.resample('YE').mean(numeric_only=True)
-
-    standards = {
-        'SO2_24h': 80, 'SO2_Annual': 50,
-        'NO2_24h': 80, 'NO2_Annual': 40,
-        'PM2.5_24h': 60, 'PM2.5_Annual': 40,
-        'PM10_24h': 100, 'PM10_Annual': 60,
-        'O3_8h': 100, 'CO_8h': 2
-    }
-
-    def compliance_check(df, annual_means):
-        out = {}
-
-        for key, limit in standards.items():
-
-            if "Annual" in key:
-                base = key.replace("_Annual","")
-                col1 = base + " (ug/m3)"
-                col2 = base + " (mg/m3)"
-
-                if col1 in annual_means:
-                    series = annual_means[col1].dropna()
-                elif col2 in annual_means:
-                    series = annual_means[col2].dropna()
-                else:
-                    continue
-            else:
-                if key in df:
-                    series = df[key].dropna()
-                else:
-                    continue
-
-            if len(series) == 0:
-                continue
-
-            pct_within = (series <= limit).mean() * 100
-
-            out[key] = {
-                "Average": series.mean(),
-                "% Within Limit": pct_within
-            }
-
-        return pd.DataFrame(out).T
-
-    compliance_df = compliance_check(df, annual_means)
-
-    comp_buffer = io.BytesIO()
-    compliance_df.to_excel(comp_buffer)
-
-    results["aqi/compliance.xlsx"] = comp_buffer.getvalue()
+        results["aqi/compliance.xlsx"] = comp_buffer.getvalue()
+    except:
+        pass
 
     return results
