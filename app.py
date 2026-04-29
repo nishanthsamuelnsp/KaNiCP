@@ -14,6 +14,9 @@ if "analysis_done" not in st.session_state:
 if "valid_columns" not in st.session_state:
     st.session_state.valid_columns = []
 
+if "run_analysis" not in st.session_state:
+    st.session_state.run_analysis = False
+
 # -----------------------------
 # PAGE CONFIG
 # -----------------------------
@@ -75,7 +78,7 @@ if uploaded_file is not None:
     df = df.sort_index()
 
     # -----------------------------
-    # 🧪 DATA QUALITY (MOVED UP)
+    # 🧪 DATA QUALITY
     # -----------------------------
     st.header("🧪 Data Quality Check")
 
@@ -140,93 +143,63 @@ if uploaded_file is not None:
         })
 
     skip_kmz = st.checkbox("⏭️ Skip KMZ generation")
-    if st.session_state.get("analysis_done") and st.session_state.get("seasons"):
-
-        st.subheader("🌦️ Seasonal Split Used for Analysis")
-    
-        seasons = st.session_state.seasons
-    
-        month_names = [
-            "Jan","Feb","Mar","Apr","May","Jun",
-            "Jul","Aug","Sep","Oct","Nov","Dec"
-        ]
-    
-        for season, months in seasons.items():
-            if months:
-                readable = [month_names[m-1] for m in months]
-                st.write(f"**{season}**: {', '.join(readable)}")
-            else:
-                st.write(f"**{season}**: (No months detected)")
 
     # -----------------------------
-    # 🚀 RUN ANALYSIS
+    # 🚀 BUTTON (ONLY FLAG SET)
     # -----------------------------
     if st.button("🚀 Run Analysis"):
-        st.write("inside analysis section")
+        st.session_state.run_analysis = True
+        st.session_state.analysis_done = False
         st.session_state.results = {}
-        results = st.session_state.results
 
+    # -----------------------------
+    # 🚀 MAIN ANALYSIS (OUTSIDE BUTTON)
+    # -----------------------------
+    if st.session_state.run_analysis:
+
+        st.write("inside analysis section")
+
+        results = st.session_state.results
         progress = st.progress(0)
 
         valid_columns = st.session_state.get("valid_columns", [])
-         # -------------------------
+
         # AQI
-        # -------------------------
         from modules.aqi import run_aqi_analysis
         st.write("starting aqi")
         results.update(run_aqi_analysis(df))
         progress.progress(25)
 
-        # -------------------------
         # SEASON DETECTION
-        # -------------------------
-        try:
-            from modules.season_detection import detect_seasons
-            seasons, _ = detect_seasons(df)
-            st.session_state.seasons = seasons
-        except Exception as e:
-            st.error(f"❌ Season detection failed: {e}")
-            st.stop()
-
+        from modules.season_detection import detect_seasons
+        seasons, _ = detect_seasons(df)
+        st.session_state.seasons = seasons
         progress.progress(40)
 
-        # -------------------------
         # SEASONAL
-        # -------------------------
         st.write("starting seasonal analysis")
         from modules.seasonal import run_seasonal_analysis
         results.update(run_seasonal_analysis(df, valid_columns, seasons))
-        
-       
+        progress.progress(60)
 
-        # -------------------------
         # CORRELATION
-        # -------------------------
         st.write("Starting correlation")
         from modules.met_correlation import run_correlation_analysis
         results.update(run_correlation_analysis(df, valid_columns))
-        
         progress.progress(75)
 
-        # -------------------------
         # ROSES
-        # -------------------------
         st.write("starting roses")
         from modules.roses import run_roses_analysis
         results.update(run_roses_analysis(df, valid_columns))
         progress.progress(85)
-        # -------------------------
-        # DIURNAL (UNCHANGED)
-        # -------------------------
+
+        # DIURNAL
         from modules.diurnal import run_diurnal_analysis
         results.update(run_diurnal_analysis(df, valid_columns))
-        
-       
         progress.progress(95)
 
-        # -------------------------
         # KMZ
-        # -------------------------
         if not skip_kmz and kmz_requests:
             from modules.kmz import run_kmz_generation
 
@@ -242,7 +215,29 @@ if uploaded_file is not None:
         progress.progress(100)
 
         st.session_state.analysis_done = True
+        st.session_state.run_analysis = False
         st.success("✅ Analysis Complete")
+
+    # -----------------------------
+    # 🌦️ SHOW SEASONS (PERSISTENT)
+    # -----------------------------
+    if st.session_state.get("analysis_done") and st.session_state.get("seasons"):
+
+        st.subheader("🌦️ Seasonal Split Used for Analysis")
+
+        seasons = st.session_state.seasons
+
+        month_names = [
+            "Jan","Feb","Mar","Apr","May","Jun",
+            "Jul","Aug","Sep","Oct","Nov","Dec"
+        ]
+
+        for season, months in seasons.items():
+            if months:
+                readable = [month_names[m-1] for m in months]
+                st.write(f"**{season}**: {', '.join(readable)}")
+            else:
+                st.write(f"**{season}**: (No months detected)")
 
 # -----------------------------
 # 📊 RESULTS + DOWNLOAD
@@ -255,7 +250,6 @@ if st.session_state.analysis_done:
 
     if not results:
         st.warning("⚠️ No results generated")
-    
 
     from modules.utils import create_zip
 
