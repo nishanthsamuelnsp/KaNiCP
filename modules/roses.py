@@ -90,6 +90,7 @@ def run_roses_analysis(df, valid_columns):
         )
 
         ax.set_legend(title=full_name)
+        ax.patch.set_alpha(0.0)
         plt.title(f"Pollution Rose: {full_name}")
 
         img_buffer = io.BytesIO()
