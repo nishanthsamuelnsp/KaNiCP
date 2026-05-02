@@ -85,7 +85,7 @@ def run_roses_analysis(df, valid_columns):
             rose_df[full_name],
             normed=True,
             opening=0.8,
-            edgecolor='black',
+            edgecolor='white',
             cmap=cm.viridis
         )
 
