@@ -98,7 +98,8 @@ def run_aqi_analysis(df):
         square=True,
         ax=ax
     )
-
+    ax.set_xlabel("Months")
+    ax.set_ylabel("Days")
     ax.set_title("Daily AQI Heatmap")
 
     img_buffer = io.BytesIO()
